@@ -1,0 +1,50 @@
+name: Contract Tests
+
+on:
+  push:
+    paths:
+      - "contracts/**"
+  pull_request:
+    paths:
+      - "contracts/**"
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+    name: Soroban Contract Test Suite
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: contracts/geoguard-ledger
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Cache Cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            contracts/geoguard-ledger/target
+          key: ${{ runner.os }}-cargo-contract-${{ hashFiles('contracts/geoguard-ledger/Cargo.lock') }}
+
+      - name: Run unit tests
+        run: cargo test --verbose
+
+      - name: Build WASM
+        run: cargo build --target wasm32-unknown-unknown --release
+
+      - name: Check WASM size
+        run: |
+          SIZE=$(wc -c < target/wasm32-unknown-unknown/release/geoguard_ledger.wasm)
+          echo "WASM size: $SIZE bytes"
+          if [ "$SIZE" -gt 65536 ]; then
+            echo "::warning::WASM size exceeds 64KB. Consider optimization."
+          fi

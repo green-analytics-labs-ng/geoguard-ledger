@@ -1,0 +1,22 @@
+[package]
+name = "geoguard-ledger"
+version = "0.1.0"
+edition = "2021"
+description = "GeoGuard Ledger — Soroban smart contract for research integrity anchoring on Stellar"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+soroban-sdk = "22.0"
+
+[dev-dependencies]
+soroban-sdk = { version = "22.0", features = ["testutils"] }
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"
+overflow-checks = true

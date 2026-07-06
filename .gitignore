@@ -1,0 +1,39 @@
+# Rust / Soroban
+contracts/**/target/
+contracts/**/Cargo.lock
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+*.egg
+.venv/
+venv/
+.env
+*.log
+
+# Node / TypeScript
+node_modules/
+dist/
+build/
+.next/
+*.tsbuildinfo
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+.docker/
+
+# Misc
+*.tmp
+.turbo/
