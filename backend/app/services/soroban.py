@@ -108,11 +108,13 @@ async def build_anchor_transaction(
     model_version = anomaly_report["model_version"]
 
     # Build invoke arguments as SCVal objects for the contract function.
+    # NOTE: scval.to_*() creates SCVal from Python value (Python->SCVal serialization).
+    # scval.from_*() does the reverse (SCVal->Python deserialization).
     invoke_args = [
         StellarAddress(submitter_address).to_xdr_sc_val(),  # Address
-        scval.from_bytes(hash_bytes),                        # BytesN<32>
-        scval.from_uint32(anomaly_score_u32),                # u32
-        scval.from_symbol(model_version),                    # Symbol
+        scval.to_bytes(hash_bytes),                          # BytesN<32>
+        scval.to_uint32(anomaly_score_u32),                  # u32
+        scval.to_symbol(model_version),                      # Symbol
     ]
 
     # 3. Build the transaction envelope (v15: build() returns TransactionEnvelope directly)
@@ -233,7 +235,7 @@ async def verify_on_chain(dataset_hash: str) -> dict[str, Any] | None:
     network_passphrase = settings.soroban_network_passphrase
     hash_bytes = _hex_to_bytes(dataset_hash)
 
-    invoke_args = [scval.from_bytes(hash_bytes)]  # BytesN<32> SCVal
+    invoke_args = [scval.to_bytes(hash_bytes)]  # BytesN<32> SCVal
 
     # Use a throwaway keypair for simulation — read-only calls don't
     # require a real funded account. The sequence number is ignored
