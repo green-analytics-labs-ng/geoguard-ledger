@@ -33,7 +33,8 @@ def api_post(path, body=None, headers=None, files=False):
         pass  # Handled separately
     data = json.dumps(body).encode() if body else None
     req = urllib.request.Request(
-        url, data=data or None,
+        url,
+        data=data or None,
         headers=headers or {"Content-Type": "application/json"},
     )
     try:
@@ -164,9 +165,9 @@ def main():
         verify_result = json.loads(resp.read().decode())
         print(f"Status: {resp.status}")
         print(f"match: {verify_result['match']}")
-        if verify_result['on_chain_record']:
-            ocr = verify_result['on_chain_record']
-            print(f"on_chain_record:")
+        if verify_result["on_chain_record"]:
+            ocr = verify_result["on_chain_record"]
+            print("on_chain_record:")
             print(f"  dataset_hash: {ocr['dataset_hash']}")
             print(f"  anomaly_score: {ocr['anomaly_score']}")
             print(f"  model_version: {ocr['model_version']}")

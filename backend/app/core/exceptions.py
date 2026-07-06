@@ -14,16 +14,19 @@ class GeoGuardError(Exception):
 
 class ContractError(GeoGuardError):
     """Soroban contract interaction error."""
+
     pass
 
 
 class HasherError(GeoGuardError):
     """CSV hashing / canonicalization error."""
+
     pass
 
 
 class AnomalyDetectionError(GeoGuardError):
     """AI anomaly detection error."""
+
     pass
 
 

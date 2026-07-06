@@ -4,7 +4,8 @@ Phase 1: Simple API key validation.
 Phase 3+: JWT/OAuth integration.
 """
 
-from fastapi.security import APIKeyHeader, Security
+from fastapi import Security
+from fastapi.security import APIKeyHeader
 
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 

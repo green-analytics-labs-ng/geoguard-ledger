@@ -11,12 +11,14 @@ from typing import Any
 
 from stellar_sdk import (
     Account,
-    Address as StellarAddress,
     Keypair,
     SorobanServer,
     TransactionBuilder,
     TransactionEnvelope,
     scval,
+)
+from stellar_sdk import (
+    Address as StellarAddress,
 )
 from stellar_sdk.exceptions import NotFoundError
 from stellar_sdk.soroban_server import GetTransactionStatus
@@ -60,6 +62,7 @@ def _get_server() -> SorobanServer:
 
 # ── Transaction Building ──────────────────────────────────────────
 
+
 async def build_anchor_transaction(
     submitter_address: str,
     dataset_hash: str,
@@ -93,9 +96,7 @@ async def build_anchor_transaction(
     # 1. Load the submitter's account (needed for sequence number).
     #    Offloaded to thread pool to avoid blocking the event loop.
     try:
-        source_account: Account = await asyncio.to_thread(
-            server.load_account, submitter_address
-        )
+        source_account: Account = await asyncio.to_thread(server.load_account, submitter_address)
     except NotFoundError:
         raise ValueError(
             f"Account {submitter_address} not found on-chain. "
@@ -112,9 +113,9 @@ async def build_anchor_transaction(
     # scval.from_*() does the reverse (SCVal->Python deserialization).
     invoke_args = [
         StellarAddress(submitter_address).to_xdr_sc_val(),  # Address
-        scval.to_bytes(hash_bytes),                          # BytesN<32>
-        scval.to_uint32(anomaly_score_u32),                  # u32
-        scval.to_symbol(model_version),                      # Symbol
+        scval.to_bytes(hash_bytes),  # BytesN<32>
+        scval.to_uint32(anomaly_score_u32),  # u32
+        scval.to_symbol(model_version),  # Symbol
     ]
 
     # 3. Build the transaction envelope (v15: build() returns TransactionEnvelope directly)
@@ -123,7 +124,7 @@ async def build_anchor_transaction(
         .append_invoke_contract_function_op(
             contract_id=contract_id,
             function_name="anchor_hash",
-            parameters=invoke_args,  # type: ignore[arg-type]
+            parameters=invoke_args,
         )
         .set_timeout(300)
         .build()
@@ -135,9 +136,7 @@ async def build_anchor_transaction(
         submitter_address[:8],
     )
     try:
-        simulation = await asyncio.to_thread(
-            server.simulate_transaction, envelope
-        )
+        simulation = await asyncio.to_thread(server.simulate_transaction, envelope)
     except Exception as exc:
         logger.error("Simulation failed for hash=%s: %s", dataset_hash[:12], exc)
         raise RuntimeError(f"Transaction simulation failed: {exc}") from exc
@@ -156,6 +155,7 @@ async def build_anchor_transaction(
 
 
 # ── Transaction Submission ────────────────────────────────────────
+
 
 async def submit_transaction(signed_xdr: str) -> dict[str, Any]:
     """Submit a researcher-signed transaction to the Stellar network.
@@ -180,40 +180,33 @@ async def submit_transaction(signed_xdr: str) -> dict[str, Any]:
     # v15: send_transaction expects the full TransactionEnvelope, not .transaction
     logger.info("Submitting transaction to Soroban RPC…")
     send_response = await asyncio.to_thread(
-        server.send_transaction, envelope  # type: ignore[arg-type]
+        server.send_transaction,
+        envelope,
     )
 
     if send_response.error_result_xdr:
-        raise RuntimeError(
-            f"Transaction submission rejected: {send_response.error_result_xdr}"
-        )
+        raise RuntimeError(f"Transaction submission rejected: {send_response.error_result_xdr}")
 
     tx_hash: str = send_response.hash
     logger.info("Transaction submitted: %s", tx_hash)
 
     # Poll for confirmation (offloaded to thread pool; up to 60 seconds)
     try:
-        tx_status = await asyncio.to_thread(
-            server.poll_transaction, tx_hash, 30
-        )
+        tx_status = await asyncio.to_thread(server.poll_transaction, tx_hash, 30)
     except Exception as exc:
         logger.error("Polling failed for tx=%s: %s", tx_hash, exc)
-        raise TimeoutError(
-            f"Transaction {tx_hash} confirmation timed out"
-        ) from exc
+        raise TimeoutError(f"Transaction {tx_hash} confirmation timed out") from exc
 
     if tx_status.status == GetTransactionStatus.SUCCESS:
         ledger: int = tx_status.ledger if tx_status.ledger is not None else 0
         logger.info("Transaction %s confirmed at ledger %s", tx_hash, ledger)
         return {"tx_hash": tx_hash, "ledger": ledger}
 
-    raise RuntimeError(
-        f"Transaction {tx_hash} failed on-chain. "
-        f"Status: {tx_status.status}"
-    )
+    raise RuntimeError(f"Transaction {tx_hash} failed on-chain. Status: {tx_status.status}")
 
 
 # ── On-Chain Verification ─────────────────────────────────────────
+
 
 async def verify_on_chain(dataset_hash: str) -> dict[str, Any] | None:
     """Query the Soroban contract for an anchored dataset record.
@@ -250,16 +243,14 @@ async def verify_on_chain(dataset_hash: str) -> dict[str, Any] | None:
         .append_invoke_contract_function_op(
             contract_id=settings.contract_id,
             function_name="verify_integrity",
-            parameters=invoke_args,  # type: ignore[arg-type]
+            parameters=invoke_args,
         )
         .set_timeout(300)
         .build()
     )
 
     try:
-        simulation = await asyncio.to_thread(
-            server.simulate_transaction, envelope
-        )
+        simulation = await asyncio.to_thread(server.simulate_transaction, envelope)
     except Exception as exc:
         logger.warning("verify_on_chain simulation failed: %s", exc)
         return None
@@ -270,9 +261,10 @@ async def verify_on_chain(dataset_hash: str) -> dict[str, Any] | None:
     # The contract returns Option<AnchorRecord>.
     # v15: result has 'xdr' field (SCVal XDR bytes) instead of 'retval'.
     # Parse the XDR bytes back into an SCVal to check the return value.
-    result_xdr: bytes = simulation.results[0].xdr  # type: ignore[attr-defined]
+    result_xdr = simulation.results[0].xdr
     try:
         from stellar_sdk.xdr import SCVal as XDR_SCVal
+
         # from_xdr accepts both raw bytes AND base64-encoded strings
         retval = XDR_SCVal.from_xdr(result_xdr)
     except Exception as exc:
@@ -285,22 +277,22 @@ async def verify_on_chain(dataset_hash: str) -> dict[str, Any] | None:
 
     # Convert the SCVal to a Python dict
     try:
-        record: dict[str, Any] = scval.to_native(retval)  # type: ignore[assignment]
+        record = scval.to_native(retval)
     except Exception as exc:
         logger.warning("Failed to parse verify_integrity result: %s", exc)
         return None
 
     # BytesN<32> fields come back as raw bytes; convert to hex strings for JSON safety
-    if isinstance(record.get("dataset_hash"), bytes):
-        record["dataset_hash"] = record["dataset_hash"].hex()
+    if isinstance(record.get("dataset_hash"), bytes):  # type: ignore[union-attr]
+        record["dataset_hash"] = record["dataset_hash"].hex()  # type: ignore[call-overload,index,union-attr]
     # The submitter field from the contract is an Address object; convert to string.
     # to_string() gives the clean G... address, str() falls back to __repr__.
-    submitter = record.get("submitter")
+    submitter = record.get("submitter")  # type: ignore[union-attr]
     if hasattr(submitter, "to_string"):
-        record["submitter"] = submitter.to_string()
+        record["submitter"] = submitter.to_string()  # type: ignore[call-overload,index,union-attr]
     elif isinstance(submitter, bytes):
-        record["submitter"] = submitter.hex()
+        record["submitter"] = submitter.hex()  # type: ignore[call-overload,index]
     elif not isinstance(submitter, str):
-        record["submitter"] = str(submitter)
+        record["submitter"] = str(submitter)  # type: ignore[call-overload,index]
 
-    return record
+    return record  # type: ignore[return-value]

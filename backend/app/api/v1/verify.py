@@ -19,7 +19,7 @@ async def verify_dataset(
     dataset_hash: str | None = Query(None, description="SHA-256 hash of the dataset"),
     dataset_id: str | None = Query(None, description="Dataset UUID to verify"),
     file: UploadFile | None = None,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db),  # noqa: B008
 ) -> dict[str, Any]:
     """Verify a dataset against its on-chain proof.
 
@@ -34,9 +34,7 @@ async def verify_dataset(
 
     # Mode 2: Look up dataset_id in the database
     if dataset_id and not resolved_hash and not file:
-        result = await db.execute(
-            select(Dataset).where(Dataset.dataset_id == dataset_id)
-        )
+        result = await db.execute(select(Dataset).where(Dataset.dataset_id == dataset_id))
         ds = result.scalar_one_or_none()
         if ds:
             resolved_hash = ds.dataset_hash
@@ -61,9 +59,7 @@ async def verify_dataset(
 
     # If not found on-chain but we have a local record, try to reconcile
     if not on_chain and dataset_id and not local_record:
-        result = await db.execute(
-            select(Dataset).where(Dataset.dataset_id == dataset_id)
-        )
+        result = await db.execute(select(Dataset).where(Dataset.dataset_id == dataset_id))
         ds = result.scalar_one_or_none()
         if ds:
             local_record = {

@@ -1,8 +1,10 @@
-"""Test the full GeoGuard Ledger API flow end-to-end inside Docker.
-Run with: docker cp backend/tests/test_full_api.py <container>:/tmp/ && docker exec <container> python3 /tmp/test_full_api.py
+"""End-to-end API test for Docker. Run via:
+    docker cp backend/tests/test_full_api.py <container>:/tmp/ \
+    && docker exec <container> python3 /tmp/test_full_api.py
 """
-import urllib.request
+
 import json
+import urllib.request
 
 BASE = "http://localhost:8000/api/v1"
 

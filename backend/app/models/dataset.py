@@ -1,7 +1,8 @@
 """SQLAlchemy model for geochemical dataset records."""
 
 import uuid
-from datetime import UTC, datetime
+from datetime import datetime
+
 from sqlalchemy import JSON, DateTime, Float, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 

@@ -33,16 +33,31 @@ _MIN_ROWS = 5
 # Standard Tukey's fences: 1.5 for "outlier", 3.0 for "far out".
 _IQR_MULTIPLIER = 1.5
 
-_ID_COLUMNS = frozenset({
-    "sample_id", "sampleid", "sample id", "id",
-    "site_id", "siteid", "station_id", "stationid",
-    "well_id", "wellid",
-})
+_ID_COLUMNS = frozenset(
+    {
+        "sample_id",
+        "sampleid",
+        "sample id",
+        "id",
+        "site_id",
+        "siteid",
+        "station_id",
+        "stationid",
+        "well_id",
+        "wellid",
+    }
+)
 
-_COORD_COLUMNS = frozenset({
-    "lat", "latitude",
-    "long", "longitude", "lon", "lng",
-})
+_COORD_COLUMNS = frozenset(
+    {
+        "lat",
+        "latitude",
+        "long",
+        "longitude",
+        "lon",
+        "lng",
+    }
+)
 
 
 def _extract_features(df: pd.DataFrame) -> pd.DataFrame:
@@ -78,7 +93,7 @@ def _extract_features(df: pd.DataFrame) -> pd.DataFrame:
     return features
 
 
-def _flag_via_iqr(scores: np.ndarray, multiplier: float = _IQR_MULTIPLIER) -> np.ndarray:
+def _flag_via_iqr(scores: np.ndarray, multiplier: float = _IQR_MULTIPLIER) -> np.ndarray:  # type: ignore[type-arg]
     """Return a boolean mask flagging scores below the IQR lower fence.
 
     The IQR (Tukey) method is robust to the score distribution — it only
@@ -112,11 +127,7 @@ def _build_summary(dataset_score: float, n_rows: int, n_flagged: int) -> str:
         f"[{label}] Score={dataset_score:.1%}, "
         f"{n_flagged}/{n_rows} rows flagged ({pct:.1f}%)."
         + (" Review recommended." if dataset_score >= 0.05 and dataset_score < threshold else "")
-        + (
-            " Likely fabrication or instrument error."
-            if dataset_score >= threshold
-            else ""
-        )
+        + (" Likely fabrication or instrument error." if dataset_score >= threshold else "")
     )
 
 
@@ -187,7 +198,7 @@ def run_anomaly_detection(csv_text: str) -> dict[str, Any]:
     model.fit(features.values)
 
     # Score each row. decision_function: higher = normal, lower = anomalous.
-    raw_scores: np.ndarray = model.decision_function(features.values)
+    raw_scores: np.ndarray = model.decision_function(features.values)  # type: ignore[type-arg]
 
     # Flag row indices using the IQR method
     flagged_mask = _flag_via_iqr(raw_scores)

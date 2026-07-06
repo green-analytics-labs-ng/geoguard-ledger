@@ -10,6 +10,7 @@ TEST_ADDRESS = "GABCDEF123456789012345678901234567890123"
 
 # ── POST /api/v1/verify by hash ───────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_verify_by_hash_found(
     client: AsyncClient,
@@ -46,6 +47,7 @@ async def test_verify_by_hash_not_found(
 
 # ── POST /api/v1/verify by dataset ID ─────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_verify_by_id_with_local_record(
     client: AsyncClient,
@@ -74,6 +76,7 @@ async def test_verify_by_id_with_local_record(
 
 # ── POST /api/v1/verify by file upload ────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_verify_by_file(
     client: AsyncClient,
@@ -91,6 +94,7 @@ async def test_verify_by_file(
 
 
 # ── POST /api/v1/verify — idempotent hash ─────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_verify_hash_determinism(
@@ -113,6 +117,7 @@ async def test_verify_hash_determinism(
 
 
 # ── Full integration: create → anchor → verify ────────────────────
+
 
 @pytest.mark.asyncio
 async def test_full_create_anchor_verify_flow(

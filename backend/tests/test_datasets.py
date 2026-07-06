@@ -4,17 +4,18 @@ Uses an in-memory SQLite database and mocks the Soroban RPC client
 so tests run quickly without external network calls.
 """
 
+import uuid
+
 import pytest
 from httpx import AsyncClient
 
-import uuid
-
-from tests.conftest import ANOMALOUS_CSV, SAMPLE_CSV, MOCK_TX_HASH, MOCK_LEDGER
+from tests.conftest import ANOMALOUS_CSV, MOCK_LEDGER, MOCK_TX_HASH, SAMPLE_CSV
 
 TEST_ADDRESS = "GABCDEF123456789012345678901234567890123"
 
 
 # ── POST /api/v1/datasets ─────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_create_dataset_success(client: AsyncClient, mock_build_transaction):
@@ -68,7 +69,9 @@ async def test_create_dataset_empty_csv(client: AsyncClient):
     )
     assert response.status_code == 400
     # The CSV parser will fail because there are no columns to parse
-    assert "parse" in response.json()["detail"].lower() or "empty" in response.json()["detail"].lower()
+    assert (
+        "parse" in response.json()["detail"].lower() or "empty" in response.json()["detail"].lower()
+    )
 
 
 @pytest.mark.asyncio
@@ -89,13 +92,18 @@ async def test_create_dataset_with_anomalies(client: AsyncClient, mock_build_tra
     assert len(data["anomaly_report"]["flags"]) > 0
     # ~16.7% score is below 20% threshold, so label is SUSPECT
     assert "SUSPECT" in data["anomaly_report"]["summary"]
-    assert "16.7" in data["anomaly_report"]["summary"] or "16.6" in data["anomaly_report"]["summary"]
+    assert (
+        "16.7" in data["anomaly_report"]["summary"] or "16.6" in data["anomaly_report"]["summary"]
+    )
 
 
 # ── POST /api/v1/datasets/{id}/submit ────────────────────────────
 
+
 @pytest.mark.asyncio
-async def test_submit_dataset_success(client: AsyncClient, mock_build_transaction, mock_submit_transaction):
+async def test_submit_dataset_success(
+    client: AsyncClient, mock_build_transaction, mock_submit_transaction
+):
     """Submit a signed transaction for a previously created dataset."""
     # First create a dataset
     create_resp = await client.post(
@@ -129,7 +137,9 @@ async def test_submit_nonexistent_dataset(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_submit_dataset_failure(client: AsyncClient, mock_build_transaction, mock_submit_transaction_failure):
+async def test_submit_dataset_failure(
+    client: AsyncClient, mock_build_transaction, mock_submit_transaction_failure
+):
     """When Soroban submission fails, the dataset status should be 'failed'."""
     create_resp = await client.post(
         "/api/v1/datasets",
@@ -148,6 +158,7 @@ async def test_submit_dataset_failure(client: AsyncClient, mock_build_transactio
 
 # ── GET /api/v1/datasets ──────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_list_datasets_empty(client: AsyncClient):
     """Initially the dataset list should be empty."""
@@ -159,7 +170,9 @@ async def test_list_datasets_empty(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_list_datasets_with_data(client: AsyncClient, mock_build_transaction, mock_submit_transaction):
+async def test_list_datasets_with_data(
+    client: AsyncClient, mock_build_transaction, mock_submit_transaction
+):
     """After creating and submitting datasets, they should appear in the list."""
     # Create and submit two datasets with different content to avoid hash collision.
     # Must have 2+ numeric feature columns (lat/long are dropped, sample_id is dropped).
@@ -190,6 +203,7 @@ async def test_list_datasets_with_data(client: AsyncClient, mock_build_transacti
 
 # ── GET /api/v1/datasets/{id} ─────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_get_dataset_by_id(client: AsyncClient, mock_build_transaction):
     """Fetch a single dataset by its ID."""
@@ -217,6 +231,7 @@ async def test_get_dataset_not_found(client: AsyncClient):
 
 
 # ── GET /api/v1/health ────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_health(client: AsyncClient):

@@ -490,8 +490,10 @@ dev = [
 dev = [
     { name = "aiosqlite" },
     { name = "httpx" },
+    { name = "mypy" },
     { name = "pytest-asyncio" },
     { name = "pytest-cov" },
+    { name = "ruff" },
 ]
 
 [package.metadata]
@@ -524,8 +526,10 @@ provides-extras = ["dev"]
 dev = [
     { name = "aiosqlite", specifier = ">=0.22.1" },
     { name = "httpx", specifier = ">=0.28.1" },
+    { name = "mypy", specifier = ">=2.1.0" },
     { name = "pytest-asyncio", specifier = ">=1.4.0" },
     { name = "pytest-cov", specifier = ">=7.1.0" },
+    { name = "ruff", specifier = ">=0.15.20" },
 ]
 
 [[package]]

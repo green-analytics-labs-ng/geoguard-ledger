@@ -5,17 +5,17 @@ and mocks the Soroban RPC client to avoid external network calls.
 """
 
 from collections.abc import AsyncGenerator
-from typing import Any
 from unittest.mock import patch
 
 import pytest
 import pytest_asyncio
-from httpx import AsyncClient, ASGITransport
+from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.db.base import Base
 from app.db.session import get_db
 from app.main import create_app
+from app.services.hasher import compute_hash as _compute_hash
 
 # Use aiosqlite for isolated, fast test database
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
@@ -78,8 +78,6 @@ S004,34.053100,-118.244600,7.22,455.00,8.40,22.20
 S005,34.053400,-118.244900,7.19,449.00,8.60,22.40
 S006,34.050000,-118.250000,9.99,9999.00,0.10,999.99
 """
-
-from app.services.hasher import compute_hash as _compute_hash
 
 SAMPLE_HASH = _compute_hash(SAMPLE_CSV)
 

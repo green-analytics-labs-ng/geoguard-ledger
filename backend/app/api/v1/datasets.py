@@ -68,11 +68,12 @@ class DatasetListResponse(BaseModel):
     status_code=status.HTTP_201_CREATED,
 )
 async def create_dataset(
-    submitter_address: str = Form(
-        ..., description="Stellar public key of the researcher"  # noqa: B008
+    submitter_address: str = Form(  # noqa: B008
+        ...,
+        description="Stellar public key of the researcher",
     ),
     file: UploadFile = File(...),  # noqa: B008
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db),  # noqa: B008
 ) -> Any:
     """Upload and process a new geochemical dataset."""
     # Validate submitter address
@@ -96,9 +97,7 @@ async def create_dataset(
     anomaly_result = run_anomaly_detection(csv_text)
 
     # Build unsigned Soroban transaction
-    xdr = await build_anchor_transaction(
-        submitter_address, dataset_hash, anomaly_result
-    )
+    xdr = await build_anchor_transaction(submitter_address, dataset_hash, anomaly_result)
 
     # Persist to database
     dataset = Dataset(
@@ -125,7 +124,9 @@ async def create_dataset(
             summary=anomaly_result["summary"],
         ),
         unsigned_transaction_xdr=xdr,
-        created_at=dataset.created_at.isoformat() if dataset.created_at else datetime.now(UTC).isoformat(),
+        created_at=dataset.created_at.isoformat()
+        if dataset.created_at
+        else datetime.now(UTC).isoformat(),
     )
 
 
@@ -133,7 +134,7 @@ async def create_dataset(
 async def submit_dataset(
     dataset_id: str,
     body: SubmitRequest,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db),  # noqa: B008
 ) -> Any:
     """Submit a researcher-signed transaction to the Stellar network."""
     # Load the dataset from DB
@@ -151,9 +152,7 @@ async def submit_dataset(
         dataset.status = "anchored"
         dataset.stellar_tx_hash = tx_result["tx_hash"]
         dataset.ledger_number = tx_result["ledger"]
-        dataset.explorer_url = (
-            f"https://stellar.expert/explorer/testnet/tx/{tx_result['tx_hash']}"
-        )
+        dataset.explorer_url = f"https://stellar.expert/explorer/testnet/tx/{tx_result['tx_hash']}"
         dataset.anchored_at = datetime.now(UTC)
     except Exception as exc:
         dataset.status = "failed"
@@ -161,7 +160,7 @@ async def submit_dataset(
         raise HTTPException(
             status_code=502,
             detail=f"Transaction submission failed: {exc}",
-        )
+        ) from exc
 
     await db.commit()
 
@@ -177,12 +176,10 @@ async def submit_dataset(
 
 @router.get("", response_model=DatasetListResponse)
 async def list_datasets(
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db),  # noqa: B008
 ) -> Any:
     """List all datasets, ordered by most recent first."""
-    result = await db.execute(
-        select(Dataset).order_by(Dataset.created_at.desc())
-    )
+    result = await db.execute(select(Dataset).order_by(Dataset.created_at.desc()))
     datasets = result.scalars().all()
     return DatasetListResponse(
         datasets=[_dataset_to_response(ds) for ds in datasets],
@@ -193,7 +190,7 @@ async def list_datasets(
 @router.get("/{dataset_id}", response_model=DatasetResponse)
 async def get_dataset(
     dataset_id: str,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db),  # noqa: B008
 ) -> Any:
     """Get full details for a single dataset."""
     result = await db.execute(select(Dataset).where(Dataset.dataset_id == dataset_id))

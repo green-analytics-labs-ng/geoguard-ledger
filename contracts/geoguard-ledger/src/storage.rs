@@ -30,11 +30,15 @@ pub fn set_admin(env: &Env, admin: &Address) {
 // ─── Anchor Records (Persistent) ─────────────────────────────────
 
 pub fn has_record(env: &Env, hash: &BytesN<32>) -> bool {
-    env.storage().persistent().has(&DataKey::Record(hash.clone()))
+    env.storage()
+        .persistent()
+        .has(&DataKey::Record(hash.clone()))
 }
 
 pub fn get_record(env: &Env, hash: &BytesN<32>) -> Option<AnchorRecord> {
-    env.storage().persistent().get(&DataKey::Record(hash.clone()))
+    env.storage()
+        .persistent()
+        .get(&DataKey::Record(hash.clone()))
 }
 
 pub fn set_record(env: &Env, hash: &BytesN<32>, record: &AnchorRecord) {

@@ -1,5 +1,5 @@
 #![no_std]
-use soroban_sdk::{contract, contractimpl, contracttype, Address, BytesN, Env, Symbol};
+use soroban_sdk::{contract, contractimpl, Address, BytesN, Env, Symbol};
 
 mod errors;
 mod storage;
@@ -50,8 +50,10 @@ impl GeoGuardLedger {
         storage::increment_submit_count(&env, &submitter);
         storage::increment_total_anchored(&env);
 
-        env.events()
-            .publish((Symbol::new(&env, "Anchored"),), (dataset_hash, submitter, timestamp));
+        env.events().publish(
+            (Symbol::new(&env, "Anchored"),),
+            (dataset_hash, submitter, timestamp),
+        );
 
         record
     }
