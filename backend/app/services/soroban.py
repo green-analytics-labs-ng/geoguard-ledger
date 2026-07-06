@@ -177,9 +177,10 @@ async def submit_transaction(signed_xdr: str) -> dict[str, Any]:
     envelope = TransactionEnvelope.from_xdr(signed_xdr, network_passphrase)
 
     # Submit (offloaded to thread pool)
+    # v15: send_transaction expects the full TransactionEnvelope, not .transaction
     logger.info("Submitting transaction to Soroban RPC…")
     send_response = await asyncio.to_thread(
-        server.send_transaction, envelope.transaction  # type: ignore[arg-type]
+        server.send_transaction, envelope  # type: ignore[arg-type]
     )
 
     if send_response.error_result_xdr:
@@ -267,8 +268,18 @@ async def verify_on_chain(dataset_hash: str) -> dict[str, Any] | None:
         return None
 
     # The contract returns Option<AnchorRecord>.
+    # v15: result has 'xdr' field (SCVal XDR bytes) instead of 'retval'.
+    # Parse the XDR bytes back into an SCVal to check the return value.
+    result_xdr: bytes = simulation.results[0].xdr  # type: ignore[attr-defined]
+    try:
+        from stellar_sdk.xdr import SCVal as XDR_SCVal
+        # from_xdr accepts both raw bytes AND base64-encoded strings
+        retval = XDR_SCVal.from_xdr(result_xdr)
+    except Exception as exc:
+        logger.warning("Failed to parse verify_integrity result XDR: %s", exc)
+        return None
+
     # Soroban serializes None (Rust Option::None) as SCV_VOID.
-    retval = simulation.results[0].retval  # type: ignore[attr-defined]
     if retval.type == SCValType.SCV_VOID:
         return None
 
@@ -278,5 +289,18 @@ async def verify_on_chain(dataset_hash: str) -> dict[str, Any] | None:
     except Exception as exc:
         logger.warning("Failed to parse verify_integrity result: %s", exc)
         return None
+
+    # BytesN<32> fields come back as raw bytes; convert to hex strings for JSON safety
+    if isinstance(record.get("dataset_hash"), bytes):
+        record["dataset_hash"] = record["dataset_hash"].hex()
+    # The submitter field from the contract is an Address object; convert to string.
+    # to_string() gives the clean G... address, str() falls back to __repr__.
+    submitter = record.get("submitter")
+    if hasattr(submitter, "to_string"):
+        record["submitter"] = submitter.to_string()
+    elif isinstance(submitter, bytes):
+        record["submitter"] = submitter.hex()
+    elif not isinstance(submitter, str):
+        record["submitter"] = str(submitter)
 
     return record
