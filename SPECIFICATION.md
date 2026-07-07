@@ -212,7 +212,7 @@ Written in **Rust** targeting the **Soroban SDK**. Compiled to WASM and deployed
 pub struct AnchorRecord {
     dataset_hash: BytesN<32>,   // SHA-256 hash of the canonicalized CSV
     anomaly_score: u32,         // Fixed-point: 0–10000 (representing 0.00–100.00%)
-    model_version: Symbol,      // e.g., "isoforest-v1"
+    model_version: Symbol,      // e.g., "isoforest_v1"
     timestamp: u64,             // Unix epoch seconds
     submitter: Address,         // Stellar public key of the submitting researcher
 }
@@ -356,7 +356,7 @@ Content-Type: multipart/form-data
   "anomaly_report": {
     "score": 0.12,
     "flags": [42, 87],
-    "model_version": "isoforest-v1",
+    "model_version": "isoforest_v1",
     "summary": "12% anomaly probability. 2 rows flagged."
   },
   "unsigned_transaction_xdr": "AAAAAgAAA...",
@@ -428,7 +428,7 @@ Verify a dataset against its on-chain proof.
   "on_chain_record": {
     "dataset_hash": "abc123...",
     "anomaly_score": 0.12,
-    "model_version": "isoforest-v1",
+    "model_version": "isoforest_v1",
     "timestamp": 1751715300,
     "submitter": "GABC..."
   },
@@ -596,10 +596,11 @@ geoguard-ledger/
 │   ├── vite.config.ts
 │   ├── tailwind.config.js
 │   ├── index.html
-│   ├── public/
+│   ├── public/                 # Static assets (Phase 4)
 │   ├── src/
 │   │   ├── main.tsx
 │   │   ├── App.tsx
+│   │   ├── App.test.tsx         # Component smoke tests (Vitest)
 │   │   ├── routes.tsx          # React Router definitions
 │   │   ├── api/
 │   │   │   ├── client.ts       # Axios instance, interceptors
@@ -633,7 +634,9 @@ geoguard-ledger/
 │   │       └── stellar.ts      # Stellar helpers (network config, etc.)
 │   ├── tests/
 │   │   ├── components/
+│   │   │   └── index.test.tsx  # Component export smoke tests
 │   │   └── pages/
+│   │       └── index.test.tsx  # Page export smoke tests
 │   └── Dockerfile
 │
 ├── docker-compose.yml          # Orchestrates backend + db + frontend
@@ -681,8 +684,10 @@ Testing is mandatory at every layer of the stack. All PRs must include tests for
 ```
 backend/tests/
 ├── conftest.py          # Fixtures: test client, DB session, mocked Soroban RPC
-├── test_datasets.py     # POST /datasets, submission, listing
-├── test_verify.py       # POST /verify, hash comparison
+├── test_datasets.py     # POST /datasets, submission, listing (13 tests)
+├── test_verify.py       # POST /verify, hash comparison (6 tests)
+├── e2e_full_api.py      # End-to-end API integration test
+├── e2e_submission_flow.py # Full submission flow integration test
 └── fixtures/
     └── sample.csv       # Deterministic test CSV
 ```
@@ -882,7 +887,7 @@ chore(ci): add Soroban contract test workflow
 | Task | Deliverable |
 |------|-------------|
 | Implement `GeoGuardLedger` contract | `anchor_hash`, `verify_integrity`, all getters, `extend_ttl`, `transfer_admin`. ✅ |
-| Write comprehensive unit tests | 11 tests covering initialization, anchoring, verification, error cases, admin transfer. ✅ |
+| Write comprehensive unit tests | 8 tests covering initialization, anchoring, verification, error cases, admin transfer. ✅ |
 | Deploy to Stellar Testnet | Contract built and ready for deployment. ⏳ (pending deployer key) |
 | Gas cost benchmarking | Report on per-anchor costs. ✅ (estimated in §4.7) |
 | Contract README | How to build, test, deploy, invoke. ⏳ |

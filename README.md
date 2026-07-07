@@ -110,7 +110,6 @@ flowchart TB
     Wallet -->|"Signed XDR"| TxBuilder
     TxBuilder -->|"Submit TX"| RPC
     RPC --> Contract
-    Contract -->|"anchor_hash()"| Contract
     TxBuilder --> PG
     Upload --> Dashboard
     Dashboard -->|"verify_integrity()"| Contract
@@ -178,8 +177,10 @@ source .venv/bin/activate
 pip install uv
 uv sync
 
-# Start PostgreSQL
+# From the project root, start PostgreSQL
+cd ..
 docker compose up -d db
+cd backend
 
 # Run database migrations
 uv run alembic upgrade head
@@ -266,7 +267,7 @@ geoguard-ledger/
 │       │   ├── storage.rs      # Persistent storage logic
 │       │   ├── types.rs        # AnchorRecord, events
 │       │   ├── errors.rs       # Contract-specific error variants
-│       │   └── test.rs         # 11 comprehensive unit tests
+│       │   └── test.rs         # 8 comprehensive unit tests
 │       └── Makefile            # Build, test, deploy targets
 │
 ├── backend/                    # FastAPI backend (Python)
@@ -285,6 +286,7 @@ geoguard-ledger/
 │       ├── components/         # CsvDropzone, WalletConnector, AnomalyBadge
 │       ├── hooks/              # useWallet, useDatasets, useVerify
 │       ├── context/            # WalletContext (Freighter state)
+│       ├── tests/              # Vitest + React Testing Library tests
 │       └── api/                # Typed API client layer
 │
 ├── docs/                       # Architecture decisions, AI model guide

@@ -27,7 +27,7 @@ The model analyzes all numeric columns in the uploaded CSV. Typical geochemical 
 |-------|------|-------------|
 | `score` | float (0.0–1.0) | Overall anomaly probability for the dataset |
 | `flags` | int[] | Row indices flagged as anomalous |
-| `model_version` | string | Version tag (e.g., "isoforest-v1") |
+| `model_version` | string | Version tag (e.g., "isoforest_v1") |
 | `summary` | string | Human-readable summary |
 
 ### Thresholds
