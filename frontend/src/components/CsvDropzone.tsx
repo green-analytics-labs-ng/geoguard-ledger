@@ -1,5 +1,10 @@
 import { useState, useRef, useCallback, type DragEvent, type ChangeEvent } from "react";
-import { validateCsvFile, parseCsvPreview, type CsvPreview } from "../utils/csv";
+import {
+  validateDataFile,
+  parseCsvPreview,
+  parseJsonPreview,
+  type CsvPreview,
+} from "../utils/csv";
 
 interface Props {
   onFileSelected: (file: File, preview: CsvPreview) => void;
@@ -16,22 +21,30 @@ export default function CsvDropzone({ onFileSelected }: Props) {
       setError(null);
       setPreview(null);
 
-      const validationError = validateCsvFile(file);
+      const validationError = validateDataFile(file);
       if (validationError) {
         setError(validationError);
         return;
       }
 
+      const isJson = file.name.toLowerCase().endsWith(".json");
+
       const reader = new FileReader();
       reader.onload = () => {
         const text = reader.result as string;
-        const parsed = parseCsvPreview(text);
+        const parsed = isJson ? parseJsonPreview(text) : parseCsvPreview(text);
         if (parsed.headers.length === 0) {
-          setError("Could not parse CSV headers");
+          setError(
+            isJson
+              ? 'Could not parse JSON — expected an array of objects or a {"data": [...]} wrapper'
+              : "Could not parse CSV headers",
+          );
           return;
         }
         if (parsed.totalRows === 0) {
-          setError("CSV has no data rows");
+          setError(
+            isJson ? "JSON data is empty" : "CSV has no data rows",
+          );
           return;
         }
         setPreview(parsed);
@@ -92,7 +105,7 @@ export default function CsvDropzone({ onFileSelected }: Props) {
         <input
           ref={inputRef}
           type="file"
-          accept=".csv"
+          accept=".csv,.json"
           className="hidden"
           onChange={handleInputChange}
         />
@@ -110,9 +123,13 @@ export default function CsvDropzone({ onFileSelected }: Props) {
           />
         </svg>
         <p className="text-gray-600 font-medium">
-          {dragging ? "Drop your CSV here" : "Drop a CSV file here, or click to browse"}
+          {dragging
+            ? "Drop your data file here"
+            : "Drop a CSV or JSON file here, or click to browse"}
         </p>
-        <p className="text-gray-400 text-sm mt-1">.csv files only (max 50 MB)</p>
+        <p className="text-gray-400 text-sm mt-1">
+          .csv or .json files (max 50 MB)
+        </p>
       </div>
 
       {error && (

@@ -13,7 +13,7 @@ http://localhost:8000/api/v1
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/health` | Health check |
-| `POST` | `/datasets` | Upload and process a CSV dataset |
+| `POST` | `/datasets` | Upload and process a CSV or JSON dataset |
 | `POST` | `/datasets/{id}/submit` | Submit a signed transaction to Stellar |
 | `GET` | `/datasets` | List all datasets |
 | `GET` | `/datasets/{id}` | Get dataset details |

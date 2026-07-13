@@ -79,6 +79,24 @@ S005,34.053400,-118.244900,7.19,449.00,8.60,22.40
 S006,34.050000,-118.250000,9.99,9999.00,0.10,999.99
 """
 
+# Equivalent JSON representation of SAMPLE_CSV for JSON upload tests.
+# Keys ordered alphabetically so parser outputs deterministic CSV.
+SAMPLE_JSON = """[
+  {"conductivity": 450.0, "dissolved_oxygen": 8.5, "latitude": 34.0522,
+   "longitude": -118.2437, "pH": 7.2, "sample_id": "S001", "temperature": 22.1},
+  {"conductivity": 452.0, "dissolved_oxygen": 8.3, "latitude": 34.0525,
+   "longitude": -118.244, "pH": 7.15, "sample_id": "S002", "temperature": 22.3},
+  {"conductivity": 448.0, "dissolved_oxygen": 8.7, "latitude": 34.0528,
+   "longitude": -118.2443, "pH": 7.18, "sample_id": "S003", "temperature": 22.0},
+  {"conductivity": 455.0, "dissolved_oxygen": 8.4, "latitude": 34.0531,
+   "longitude": -118.2446, "pH": 7.22, "sample_id": "S004", "temperature": 22.2},
+  {"conductivity": 449.0, "dissolved_oxygen": 8.6, "latitude": 34.0534,
+   "longitude": -118.2449, "pH": 7.19, "sample_id": "S005", "temperature": 22.4}
+]"""
+
+# JSON with a "data" wrapper key (alternative supported format)
+SAMPLE_JSON_WRAPPED = f'{{"data": {SAMPLE_JSON}}}'
+
 SAMPLE_HASH = _compute_hash(SAMPLE_CSV)
 
 

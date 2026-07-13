@@ -3,7 +3,7 @@
 import pytest
 from httpx import AsyncClient
 
-from tests.conftest import SAMPLE_CSV, SAMPLE_HASH
+from tests.conftest import SAMPLE_CSV, SAMPLE_HASH, SAMPLE_JSON
 
 TEST_ADDRESS = "GABCDEF123456789012345678901234567890123"
 
@@ -164,3 +164,22 @@ async def test_full_create_anchor_verify_flow(
     verify_id_data = verify_id_resp.json()
     assert verify_id_data["local_record"] is not None
     assert verify_id_data["local_record"]["dataset_id"] == dataset_id
+
+
+# ── POST /api/v1/verify by JSON file upload ───────────────────────
+
+
+@pytest.mark.asyncio
+async def test_verify_by_json_file(
+    client: AsyncClient,
+    mock_verify_on_chain_not_found,
+):
+    """Verification by JSON file upload should re-compute the hash."""
+    response = await client.post(
+        "/api/v1/verify",
+        files={"file": ("test.json", SAMPLE_JSON, "application/json")},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["re_computed_hash"] is not None
+    assert len(data["re_computed_hash"]) == 64  # SHA-256 hex

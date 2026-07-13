@@ -115,8 +115,8 @@ export default function UploadPage() {
           Upload Dataset
         </h1>
         <p className="text-sm text-gray-500 mb-8">
-          Upload a geochemical CSV dataset. The data will be hashed, analyzed
-          for anomalies, and anchored to the Stellar blockchain.
+          Upload a geochemical dataset (CSV or JSON). The data will be hashed,
+          analyzed for anomalies, and anchored to the Stellar blockchain.
         </p>
 
         {/* Stepper */}
@@ -143,8 +143,8 @@ export default function UploadPage() {
           <div className="space-y-6">
             <div className="card bg-yellow-50 border border-yellow-200">
               <p className="text-sm text-yellow-800">
-                Review the data preview below. When you're ready, we'll hash
-                the dataset and run AI anomaly detection.
+                Review the data preview below. When you're ready,
+                we'll hash the dataset and run AI anomaly detection.
               </p>
             </div>
             <div className="card">

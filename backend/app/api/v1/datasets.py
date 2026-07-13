@@ -12,6 +12,7 @@ from app.db.session import get_db
 from app.models.dataset import Dataset
 from app.services.anomaly import run_anomaly_detection
 from app.services.hasher import compute_hash
+from app.services.parser import is_supported, parse_to_csv
 from app.services.soroban import build_anchor_transaction, submit_transaction
 
 router = APIRouter(prefix="/datasets")
@@ -83,12 +84,15 @@ async def create_dataset(
             detail="Invalid Stellar public key — must start with 'G'",
         )
 
-    # Validate file
-    if not file.filename or not file.filename.endswith(".csv"):
-        raise HTTPException(status_code=400, detail="File must be a CSV")
+    # Validate file format (CSV or JSON)
+    if not file.filename or not is_supported(file.filename):
+        raise HTTPException(
+            status_code=400,
+            detail="File must be a .csv or .json file",
+        )
 
     content = await file.read()
-    csv_text = content.decode("utf-8")
+    csv_text = parse_to_csv(content, file.filename)
 
     # Compute SHA-256 hash
     dataset_hash = compute_hash(csv_text)

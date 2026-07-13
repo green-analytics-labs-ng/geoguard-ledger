@@ -343,7 +343,7 @@ Upload and process a new geochemical dataset.
 **Request:**
 ```
 Content-Type: multipart/form-data
-  - file: CSV file (required)
+  - file: CSV or JSON file (required)
   - researcher_id: string (optional, derived from auth token in later phases)
   - hash_columns: string[] (optional, columns to include in hash)
 ```
@@ -417,7 +417,7 @@ Verify a dataset against its on-chain proof.
   "dataset_id": "uuid"         // Option A: look up by ID
   // OR
   "dataset_hash": "abc123...", // Option B: verify by hash directly
-  "file": "..."                // Option C: re-upload CSV to re-hash and verify
+  "file": "..."                // Option C: re-upload CSV or JSON to re-hash and verify
 }
 ```
 
