@@ -107,9 +107,7 @@ def _parse_json(content: bytes) -> str:
         )
 
     if not isinstance(records, list):
-        raise ParseError(
-            f"Expected a JSON array of records, got {type(records).__name__}"
-        )
+        raise ParseError(f"Expected a JSON array of records, got {type(records).__name__}")
 
     if len(records) == 0:
         raise ParseError("JSON data array is empty")
@@ -121,9 +119,7 @@ def _parse_json(content: bytes) -> str:
     try:
         df = pd.DataFrame(records)
     except Exception as exc:
-        raise ParseError(
-            f"Failed to convert JSON to tabular data: {exc}"
-        ) from exc
+        raise ParseError(f"Failed to convert JSON to tabular data: {exc}") from exc
 
     # Sort columns alphabetically for deterministic output
     df = df.reindex(columns=sorted(df.columns))

@@ -130,10 +130,12 @@ def test_parse_to_csv_non_utf8_csv():
 # ── parse_to_csv — JSON path: happy paths ─────────────────────────
 
 
-FLAT_JSON = json.dumps([
-    {"b": 2, "a": 1},
-    {"b": 4, "a": 3},
-]).encode("utf-8")
+FLAT_JSON = json.dumps(
+    [
+        {"b": 2, "a": 1},
+        {"b": 4, "a": 3},
+    ]
+).encode("utf-8")
 
 
 def test_parse_to_csv_json_flat_array():
@@ -154,10 +156,14 @@ def test_parse_to_csv_csv_uppercase_extension():
     assert result == "col1,col2\n1,2\n"
 
 
-WRAPPED_JSON = json.dumps({"data": [
-    {"b": 2, "a": 1},
-    {"b": 4, "a": 3},
-]}).encode("utf-8")
+WRAPPED_JSON = json.dumps(
+    {
+        "data": [
+            {"b": 2, "a": 1},
+            {"b": 4, "a": 3},
+        ]
+    }
+).encode("utf-8")
 
 
 def test_parse_to_csv_json_wrapped():
@@ -166,9 +172,11 @@ def test_parse_to_csv_json_wrapped():
 
 
 # Keys out of order in the JSON should still produce sorted CSV columns.
-UNORDERED_JSON = json.dumps([
-    {"z": 9, "m": 3, "a": 1},
-]).encode("utf-8")
+UNORDERED_JSON = json.dumps(
+    [
+        {"z": 9, "m": 3, "a": 1},
+    ]
+).encode("utf-8")
 
 
 def test_parse_to_csv_json_column_sorting():
@@ -196,11 +204,13 @@ def test_parse_to_csv_json_deterministic_wrapped():
 # ── parse_to_csv — JSON path: mixed / missing keys across records ─
 
 
-INCONSISTENT_KEYS_JSON = json.dumps([
-    {"a": 1, "b": 2},
-    {"b": 4, "c": 5},
-    {"a": 7, "c": 8},
-]).encode("utf-8")
+INCONSISTENT_KEYS_JSON = json.dumps(
+    [
+        {"a": 1, "b": 2},
+        {"b": 4, "c": 5},
+        {"a": 7, "c": 8},
+    ]
+).encode("utf-8")
 
 
 def test_parse_to_csv_json_inconsistent_keys():
@@ -219,10 +229,12 @@ def test_parse_to_csv_json_inconsistent_keys():
 # ── parse_to_csv — JSON path: numeric & string values ─────────────
 
 
-MIXED_TYPES_JSON = json.dumps([
-    {"name": "Site A", "ph": 7.2, "count": 3},
-    {"name": "Site B", "ph": 8.1, "count": 5},
-]).encode("utf-8")
+MIXED_TYPES_JSON = json.dumps(
+    [
+        {"name": "Site A", "ph": 7.2, "count": 3},
+        {"name": "Site B", "ph": 8.1, "count": 5},
+    ]
+).encode("utf-8")
 
 
 def test_parse_to_csv_json_mixed_types():
@@ -244,10 +256,12 @@ def test_parse_to_csv_json_single_record():
 # ── parse_to_csv — JSON path: null values ─────────────────────────
 
 
-NULL_VALUES_JSON = json.dumps([
-    {"a": 1, "b": None},
-    {"a": None, "b": 2},
-]).encode("utf-8")
+NULL_VALUES_JSON = json.dumps(
+    [
+        {"a": 1, "b": None},
+        {"a": None, "b": 2},
+    ]
+).encode("utf-8")
 
 
 def test_parse_to_csv_json_null_values():
@@ -319,10 +333,12 @@ def test_parse_to_csv_csv_with_bom():
 # ── parse_to_csv — JSON path: data key present but not alone ──────
 
 
-JSON_DATA_PLUS_EXTRA = json.dumps({
-    "data": [{"a": 1}],
-    "meta": "ignored",
-}).encode("utf-8")
+JSON_DATA_PLUS_EXTRA = json.dumps(
+    {
+        "data": [{"a": 1}],
+        "meta": "ignored",
+    }
+).encode("utf-8")
 
 
 def test_parse_to_csv_json_data_key_plus_extra_keys():

@@ -282,9 +282,7 @@ async def test_create_dataset_json_success(client: AsyncClient, mock_build_trans
 
 
 @pytest.mark.asyncio
-async def test_create_dataset_json_wrapped_success(
-    client: AsyncClient, mock_build_transaction
-):
+async def test_create_dataset_json_wrapped_success(client: AsyncClient, mock_build_transaction):
     """Upload JSON wrapped in {"data": [...]} should also succeed."""
     response = await client.post(
         "/api/v1/datasets",
@@ -334,9 +332,7 @@ async def test_create_dataset_json_empty_array(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_create_dataset_json_with_anomalies(
-    client: AsyncClient, mock_build_transaction
-):
+async def test_create_dataset_json_with_anomalies(client: AsyncClient, mock_build_transaction):
     """Upload JSON with a clear outlier row should produce non-zero anomaly score."""
     anomalous_json = """[
       {"conductivity": 450.0, "dissolved_oxygen": 8.5, "pH": 7.2, "temperature": 22.1},
@@ -364,9 +360,7 @@ async def test_create_dataset_json_not_utf8(client: AsyncClient):
     response = await client.post(
         "/api/v1/datasets",
         data={"submitter_address": TEST_ADDRESS},
-        files={
-            "file": ("test.json", b"\xff\xfe\x00\x01", "application/json")
-        },
+        files={"file": ("test.json", b"\xff\xfe\x00\x01", "application/json")},
     )
     assert response.status_code == 400
     detail = response.json()["detail"].lower()
