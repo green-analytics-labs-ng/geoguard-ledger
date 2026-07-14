@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { WalletProvider } from "./context/WalletContext";
+import ErrorBoundary from "./components/ErrorBoundary";
 import DashboardPage from "./pages/DashboardPage";
 import UploadPage from "./pages/UploadPage";
 import DatasetListPage from "./pages/DatasetListPage";
@@ -11,14 +12,16 @@ export default function App() {
   return (
     <WalletProvider>
       <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<DashboardPage />} />
-          <Route path="/upload" element={<UploadPage />} />
-          <Route path="/datasets" element={<DatasetListPage />} />
-          <Route path="/datasets/:id" element={<DatasetDetailPage />} />
-          <Route path="/verify" element={<VerifyPage />} />
-          <Route path="/settings" element={<SettingsPage />} />
-        </Routes>
+        <ErrorBoundary>
+          <Routes>
+            <Route path="/" element={<DashboardPage />} />
+            <Route path="/upload" element={<UploadPage />} />
+            <Route path="/datasets" element={<DatasetListPage />} />
+            <Route path="/datasets/:id" element={<DatasetDetailPage />} />
+            <Route path="/verify" element={<VerifyPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
+          </Routes>
+        </ErrorBoundary>
       </BrowserRouter>
     </WalletProvider>
   );
