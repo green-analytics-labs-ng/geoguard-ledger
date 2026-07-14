@@ -5,3 +5,4 @@ export { default as AnomalyBadge } from "./AnomalyBadge";
 export { default as TxExplorerLink } from "./TxExplorerLink";
 export { default as DatasetTable } from "./DatasetTable";
 export { default as VerificationResult } from "./VerificationResult";
+export { default as ErrorBoundary } from "./ErrorBoundary";
