@@ -91,7 +91,14 @@ async def create_dataset(
             detail="File must be a .csv or .json file",
         )
 
+    # Enforce server-side file size limit (50 MB, matching frontend limit)
+    MAX_FILE_SIZE = 50 * 1024 * 1024
     content = await file.read()
+    if len(content) > MAX_FILE_SIZE:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"File size exceeds {MAX_FILE_SIZE // (1024 * 1024)} MB limit",
+        )
     csv_text = parse_to_csv(content, file.filename)
 
     # Compute SHA-256 hash
