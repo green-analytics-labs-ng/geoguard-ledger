@@ -79,9 +79,10 @@ impl GeoGuardLedger {
             panic!("Dataset hash not found");
         }
         let key = storage::DataKey::Record(dataset_hash.clone());
+        let threshold = env.ledger().sequence();
         env.storage()
             .persistent()
-            .extend_ttl(&key, extend_to, extend_to);
+            .extend_ttl(&key, threshold, extend_to);
     }
 
     /// Transfer admin rights to a new address. Admin only.
