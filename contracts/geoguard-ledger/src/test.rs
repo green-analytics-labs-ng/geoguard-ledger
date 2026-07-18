@@ -133,4 +133,17 @@ mod tests {
 
         client.transfer_admin(&new_admin);
     }
+
+    #[test]
+    #[should_panic(expected = "HostError")]
+    fn test_transfer_admin_unauthorized() {
+        let env = Env::default();
+        let client = setup_env(&env);
+        let admin = Address::generate(&env);
+        client.initialize(&admin);
+
+        // Use a non-admin address to attempt the transfer
+        let imposter = Address::generate(&env);
+        client.transfer_admin(&imposter);
+    }
 }
