@@ -126,4 +126,13 @@ def _parse_json(content: bytes) -> str:
 
     output = io.StringIO()
     df.to_csv(output, index=False)
-    return output.getvalue()
+    csv_str = output.getvalue()
+
+    # Strip unnecessary ".0" from integer values that pandas floatifies.
+    # A value like "3.0\n" after a comma or at line start is an integer
+    # that pandas cast to float64. Match whole tokens so "3.0" doesn't
+    # become "3" inside "3.05".
+    import re as _re
+
+    csv_str = _re.sub(r"(?<=,|^)(\d+)\.0(?=\n|,)", r"\1", csv_str)
+    return csv_str
