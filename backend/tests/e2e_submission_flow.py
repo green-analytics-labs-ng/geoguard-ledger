@@ -13,6 +13,7 @@ Run inside the Docker container:
 """
 
 import json
+import os
 import urllib.request
 import uuid
 
@@ -20,9 +21,16 @@ from stellar_sdk import Keypair, TransactionEnvelope
 
 BASE = "http://localhost:8000/api/v1"
 
-# Deployer keypair for signing (funded on Testnet, admin of the contract)
-DEPLOYER_SECRET = "SDIYZRYM4XYA5IK37KFPI6HJZT2ONNMBRVLTAACQH6YXWD7X2TYGZXXV"
-DEPLOYER_PK = "GCYZFJLXVXHL3RN2XECSLGTS2NPMHWGJUYTZWKNNELRML56NBJY5YRRG"
+# Deployer keypair for signing (funded on Testnet, admin of the contract).
+# Use env vars in CI; fall back to a random keypair for local offline testing.
+_DEPLOYER_SECRET_ENV = os.environ.get("DEPLOYER_SECRET")
+if _DEPLOYER_SECRET_ENV:
+    DEPLOYER_SECRET = _DEPLOYER_SECRET_ENV
+    DEPLOYER_PK = Keypair.from_secret(DEPLOYER_SECRET).public_key
+else:
+    _kp = Keypair.random()
+    DEPLOYER_SECRET = _kp.secret
+    DEPLOYER_PK = _kp.public_key
 
 
 def api_post(path, body=None, headers=None, files=False):
