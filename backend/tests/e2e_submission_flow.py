@@ -13,6 +13,7 @@ Run inside the Docker container:
 """
 
 import json
+import os
 import urllib.request
 import uuid
 
@@ -22,16 +23,12 @@ BASE = "http://localhost:8000/api/v1"
 
 # Deployer keypair for signing (funded on Testnet, admin of the contract).
 # Use env vars in CI; fall back to a random keypair for local offline testing.
-import os as _os
-
-from stellar_sdk import Keypair as _Keypair
-
-_DEPLOYER_SECRET_ENV = _os.environ.get("DEPLOYER_SECRET")
+_DEPLOYER_SECRET_ENV = os.environ.get("DEPLOYER_SECRET")
 if _DEPLOYER_SECRET_ENV:
     DEPLOYER_SECRET = _DEPLOYER_SECRET_ENV
-    DEPLOYER_PK = _Keypair.from_secret(DEPLOYER_SECRET).public_key
+    DEPLOYER_PK = Keypair.from_secret(DEPLOYER_SECRET).public_key
 else:
-    _kp = _Keypair.random()
+    _kp = Keypair.random()
     DEPLOYER_SECRET = _kp.secret
     DEPLOYER_PK = _kp.public_key
 
