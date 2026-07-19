@@ -15,7 +15,7 @@ async def _check_soroban_rpc() -> str:
     try:
         server = SorobanServer(settings.soroban_rpc_url)
         health = await asyncio.to_thread(server.get_health)
-        if health.get("status") == "healthy":
+        if health.status == "healthy":
             return "connected"
         return f"unhealthy: {health}"
     except Exception as exc:
