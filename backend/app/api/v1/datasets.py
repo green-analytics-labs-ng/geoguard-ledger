@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.db.session import get_db
 from app.models.dataset import Dataset
 from app.services.anomaly import run_anomaly_detection
@@ -89,6 +90,12 @@ async def create_dataset(
         raise HTTPException(
             status_code=400,
             detail="File must be a .csv or .json file",
+        )
+
+    if file.size is not None and file.size > settings.max_upload_size:
+        raise HTTPException(
+            status_code=413,
+            detail=f"File too large — maximum size is {settings.max_upload_size // (1024 * 1024)} MB",
         )
 
     content = await file.read()

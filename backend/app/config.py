@@ -20,6 +20,9 @@ class Settings(BaseSettings):
     ai_model_version: str = "isoforest_v1"
     ai_anomaly_threshold: float = 0.20
 
+    # Security — file upload limits (50 MB default, matching frontend)
+    max_upload_size: int = 50 * 1024 * 1024
+
     log_level: str = "INFO"
 
 
