@@ -138,11 +138,17 @@ mod tests {
     #[should_panic(expected = "HostError")]
     fn test_transfer_admin_unauthorized() {
         let env = Env::default();
-        let client = setup_env(&env);
+        // Intentionally do NOT call env.mock_all_auths() here — we want
+        // admin.require_auth() inside transfer_admin to fail.
+        let contract_id = env.register(crate::GeoGuardLedger, ());
+        let client = GeoGuardLedgerClient::new(&env, &contract_id);
+
         let admin = Address::generate(&env);
         client.initialize(&admin);
 
-        // Use a non-admin address to attempt the transfer
+        // Use a non-admin address to attempt the transfer.
+        // The client auto-auths `imposter` as the Address arg, but the
+        // contract calls admin.require_auth() — so it will fail.
         let imposter = Address::generate(&env);
         client.transfer_admin(&imposter);
     }
