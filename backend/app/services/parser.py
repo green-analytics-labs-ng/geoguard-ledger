@@ -134,5 +134,5 @@ def _parse_json(content: bytes) -> str:
     # become "3" inside "3.05".
     import re as _re
 
-    csv_str = _re.sub(r"(?<=,|^)(\d+)\.0(?=\n|,)", r"\1", csv_str)
+    csv_str = _re.sub(r"(^|,)(\d+)\.0(?=\n|,)", r"\1\2", csv_str)
     return csv_str
