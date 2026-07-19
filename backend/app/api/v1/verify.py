@@ -54,10 +54,11 @@ async def verify_dataset(
                 status_code=400,
                 detail="File must be a .csv or .json file",
             )
+        max_mb = settings.max_upload_size // (1024 * 1024)
         if file.size is not None and file.size > settings.max_upload_size:
             raise HTTPException(
                 status_code=413,
-                detail=f"File too large — maximum size is {settings.max_upload_size // (1024 * 1024)} MB",
+                detail=f"File too large — maximum size is {max_mb} MB",
             )
         content = await file.read()
         csv_text = parse_to_csv(content, file.filename)
