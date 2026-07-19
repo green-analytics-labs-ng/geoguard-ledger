@@ -219,11 +219,11 @@ def test_parse_to_csv_json_inconsistent_keys():
     lines = result.strip().split("\n")
     assert lines[0] == "a,b,c"
     # Row 0: a=1, b=2, c=NaN → "1,2,"
-    assert lines[1] == "1.0,2.0,"
-    # Row 1: a=NaN, b=4, c=5 → ",4.0,5.0"
-    assert lines[2] == ",4.0,5.0"
-    # Row 2: a=7, b=NaN, c=8 → "7.0,,8.0"
-    assert lines[3] == "7.0,,8.0"
+    assert lines[1] == "1,2,"
+    # Row 1: a=NaN, b=4, c=5 → ",4,5"
+    assert lines[2] == ",4,5"
+    # Row 2: a=7, b=NaN, c=8 → "7,,8"
+    assert lines[3] == "7,,8"
 
 
 # ── parse_to_csv — JSON path: numeric & string values ─────────────
@@ -268,8 +268,8 @@ def test_parse_to_csv_json_null_values():
     result = parse_to_csv(NULL_VALUES_JSON, "data.json")
     lines = result.strip().split("\n")
     assert lines[0] == "a,b"
-    assert lines[1] == "1.0,"
-    assert lines[2] == ",2.0"
+    assert lines[1] == "1,"
+    assert lines[2] == ",2"
 
 
 # ── parse_to_csv — JSON path: error cases ─────────────────────────
