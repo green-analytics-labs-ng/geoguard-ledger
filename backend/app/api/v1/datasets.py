@@ -4,10 +4,11 @@ from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.uploads import read_upload
 from app.db.session import get_db
 from app.models.dataset import Dataset
 from app.services.anomaly import run_anomaly_detection
@@ -23,6 +24,7 @@ class AnomalyReport(BaseModel):
     flags: list[int]
     model_version: str
     summary: str
+    warnings: list[str] = Field(default_factory=list)
 
 
 class DatasetCreateResponse(BaseModel):
@@ -91,7 +93,7 @@ async def create_dataset(
             detail="File must be a .csv or .json file",
         )
 
-    content = await file.read()
+    content = await read_upload(file)
     csv_text = parse_to_csv(content, file.filename)
 
     # Compute SHA-256 hash
@@ -112,6 +114,7 @@ async def create_dataset(
         anomaly_flags=anomaly_result["flags"],
         model_version=anomaly_result["model_version"],
         anomaly_summary=anomaly_result["summary"],
+        anomaly_warnings=anomaly_result.get("warnings", []),
         unsigned_transaction_xdr=xdr,
     )
     db.add(dataset)
@@ -126,6 +129,7 @@ async def create_dataset(
             flags=anomaly_result["flags"],
             model_version=anomaly_result["model_version"],
             summary=anomaly_result["summary"],
+            warnings=anomaly_result.get("warnings", []),
         ),
         unsigned_transaction_xdr=xdr,
         created_at=dataset.created_at.isoformat()
@@ -213,6 +217,7 @@ def _dataset_to_response(dataset: Dataset) -> DatasetResponse:
             flags=dataset.anomaly_flags or [],
             model_version=dataset.model_version,
             summary=dataset.anomaly_summary or "",
+            warnings=dataset.anomaly_warnings or [],
         )
 
     return DatasetResponse(

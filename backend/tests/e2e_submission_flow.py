@@ -8,11 +8,16 @@ This script simulates the full user journey:
 4. Verify the on-chain proof
 
 Run inside the Docker container:
-  docker cp backend/tests/test_submission_flow.py <container>:/tmp/
-  docker exec <container> uv run python3 /tmp/test_submission_flow.py
+  docker cp backend/tests/e2e_submission_flow.py <container>:/tmp/
+  docker exec <container> uv run python3 /tmp/e2e_submission_flow.py
+
+The signing key is read from the DEPLOYER_SECRET environment variable. Never
+commit a real Stellar secret key to this repository.
 """
 
 import json
+import os
+import urllib.error
 import urllib.request
 import uuid
 
@@ -20,9 +25,22 @@ from stellar_sdk import Keypair, TransactionEnvelope
 
 BASE = "http://localhost:8000/api/v1"
 
-# Deployer keypair for signing (funded on Testnet, admin of the contract)
-DEPLOYER_SECRET = "SDIYZRYM4XYA5IK37KFPI6HJZT2ONNMBRVLTAACQH6YXWD7X2TYGZXXV"
-DEPLOYER_PK = "GCYZFJLXVXHL3RN2XECSLGTS2NPMHWGJUYTZWKNNELRML56NBJY5YRRG"
+
+def load_signer() -> Keypair:
+    """Load the test signer keypair from the environment.
+
+    ``DEPLOYER_SECRET`` must hold a funded Testnet secret key belonging to the
+    contract admin. When it is unset we fall back to a throwaway keypair so the
+    script is still runnable, but the on-chain steps will fail until a funded
+    key is supplied.
+    """
+    secret = os.environ.get("DEPLOYER_SECRET")
+    if secret:
+        return Keypair.from_secret(secret)
+
+    print("DEPLOYER_SECRET is not set - using a random, unfunded keypair.")
+    print("On-chain submission will fail until a funded Testnet key is provided.\n")
+    return Keypair.random()
 
 
 def api_post(path, body=None, headers=None, files=False):
@@ -53,6 +71,11 @@ def main():
     print(json.loads(resp.read()))
     print()
 
+    # The submitter is the holder of DEPLOYER_SECRET; derive the public key
+    # from it rather than hardcoding a fixed address.
+    kp = load_signer()
+    submitter_public_key = kp.public_key
+
     # ── Step 1: Create Dataset ────────────────────────────────────
     print("=" * 60)
     print("STEP 1: Create Dataset")
@@ -75,7 +98,7 @@ def main():
         f"--{boundary}",
         'Content-Disposition: form-data; name="submitter_address"',
         "",
-        DEPLOYER_PK,
+        submitter_public_key,
         f"--{boundary}",
         'Content-Disposition: form-data; name="file"; filename="sample.csv"',
         "Content-Type: text/csv",
@@ -113,7 +136,6 @@ def main():
     print("STEP 2: Sign Transaction")
     print("=" * 60)
 
-    kp = Keypair.from_secret(DEPLOYER_SECRET)
     network_passphrase = "Test SDF Network ; September 2015"
 
     envelope = TransactionEnvelope.from_xdr(unsigned_xdr, network_passphrase)

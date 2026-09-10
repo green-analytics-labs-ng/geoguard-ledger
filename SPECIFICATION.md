@@ -348,6 +348,16 @@ Content-Type: multipart/form-data
   - hash_columns: string[] (optional, columns to include in hash)
 ```
 
+**Limits:** the request body is capped at `MAX_UPLOAD_SIZE_BYTES` (default
+50 MB) and enforced server-side before the body is read. Oversized uploads are
+rejected with `413 Payload Too Large`.
+
+`anomaly_report.warnings` carries domain-informed plausibility findings
+(impossible or implausible geochemical values). Unlike `score`/`flags`, these
+come from deterministic range checks rather than the statistical model, so they
+are also reported for datasets too small to score. See
+[docs/ai_model.md](docs/ai_model.md#geochemical-range-validation).
+
 **Response (201 Created):**
 ```json
 {
@@ -357,7 +367,8 @@ Content-Type: multipart/form-data
     "score": 0.12,
     "flags": [42, 87],
     "model_version": "isoforest_v1",
-    "summary": "12% anomaly probability. 2 rows flagged."
+    "summary": "12% anomaly probability. 2 rows flagged.",
+    "warnings": ["[ERROR] pH: 1 value(s) outside the plausible range 0 to 14 (rows 4)"]
   },
   "unsigned_transaction_xdr": "AAAAAgAAA...",
   "created_at": "2026-07-05T12:00:00Z"
@@ -440,7 +451,12 @@ Verify a dataset against its on-chain proof.
 ```
 
 #### `GET /api/v1/health`
-Health check endpoint. Returns `{"status": "ok", "soroban_rpc": "connected"}`.
+Health check endpoint. Probes the Soroban RPC endpoint on every call and
+reports the real result: `{"status": "ok", "soroban_rpc": "connected"}` when
+the RPC is reachable and healthy, `{"status": "ok", "soroban_rpc":
+"unreachable"}` otherwise. `status` describes the API itself, so it stays
+`"ok"` while a dependency is down. The probe timeout is configurable via
+`SOROBAN_RPC_HEALTH_TIMEOUT_SECONDS`.
 
 ### 5.3 Authentication & Authorization
 
@@ -684,8 +700,13 @@ Testing is mandatory at every layer of the stack. All PRs must include tests for
 ```
 backend/tests/
 ├── conftest.py          # Fixtures: test client, DB session, mocked Soroban RPC
-├── test_datasets.py     # POST /datasets, submission, listing (13 tests)
-├── test_verify.py       # POST /verify, hash comparison (6 tests)
+├── test_datasets.py     # POST /datasets, submission, listing
+├── test_verify.py       # POST /verify, hash comparison
+├── test_parser.py       # CSV/JSON parsing and canonical conversion
+├── test_parser_json_types.py # JSON type preservation / hash equivalence
+├── test_validation.py   # Geochemical range checks + report integration
+├── test_uploads.py      # Server-side size limits on both upload endpoints
+├── test_health.py       # Real Soroban RPC connectivity reporting
 ├── e2e_full_api.py      # End-to-end API integration test
 ├── e2e_submission_flow.py # Full submission flow integration test
 └── fixtures/
@@ -697,7 +718,10 @@ backend/tests/
 - Mock the Soroban RPC client (`soroban.py`) to avoid external network calls.
 - Use an in-memory SQLite database (`aiosqlite`) for isolated test DB state.
 - Test hash determinism: the same CSV must always produce the same SHA-256.
+- Test format equivalence: the same data uploaded as CSV and as JSON must hash identically.
 - Test canonicalization edge cases: BOM characters, `\r\n` line endings, trailing whitespace.
+- Test server-side upload limits return `413`, independently of the frontend check.
+- Test the health endpoint against mocked connected and unreachable RPC states.
 
 **Coverage targets:**
 - All API endpoints: success responses, validation errors, and edge cases.
