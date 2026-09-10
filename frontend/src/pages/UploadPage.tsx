@@ -5,6 +5,7 @@ import { uploadCsv, submitDataset } from "../api/datasets";
 import CsvDropzone from "../components/CsvDropzone";
 import SubmissionStepper from "../components/SubmissionStepper";
 import AnomalyBadge from "../components/AnomalyBadge";
+import AnomalyWarnings from "../components/AnomalyWarnings";
 import TxExplorerLink from "../components/TxExplorerLink";
 import WalletConnector from "../components/WalletConnector";
 import type { CsvPreview, SubmissionStep, DatasetCreateResponse, SubmitResponse } from "../types";
@@ -198,6 +199,11 @@ export default function UploadPage() {
                   <strong>{createResponse.anomaly_report.flags.length} row(s)</strong> flagged as anomalous.
                 </div>
               )}
+              <div className="mt-3">
+                <AnomalyWarnings
+                  warnings={createResponse.anomaly_report.warnings ?? []}
+                />
+              </div>
               <div className="mt-4 bg-gray-50 rounded-lg p-3">
                 <p className="text-xs text-gray-500 mb-1">Dataset Hash</p>
                 <code className="text-sm font-mono text-gray-700 break-all">

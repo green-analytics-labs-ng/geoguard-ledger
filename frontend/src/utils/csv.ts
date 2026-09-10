@@ -35,16 +35,95 @@ export function validateCsvFile(file: File): string | null {
   return validateDataFile(file);
 }
 
-/** Parse CSV text into a preview structure. */
+/**
+ * Parse delimited text into rows, following RFC 4180.
+ *
+ * Unlike a naive "toggle on every quote" approach, this handles:
+ * - quoted fields containing the delimiter (`,`, newlines, or quotes);
+ * - escaped quotes inside a quoted field (`""` becomes a single `"`);
+ * - LF, CRLF and CR line endings, including newlines inside quoted fields.
+ *
+ * Cells are trimmed to match the backend, whose canonicalization strips
+ * whitespace from every cell before hashing, so the preview reflects what is
+ * actually anchored.
+ */
+export function parseCsvRows(text: string): string[][] {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let field = "";
+  let inQuotes = false;
+  let fieldWasQuoted = false;
+
+  const pushField = (): void => {
+    row.push(field.trim());
+    field = "";
+    fieldWasQuoted = false;
+  };
+
+  const pushRow = (): void => {
+    pushField();
+    rows.push(row);
+    row = [];
+  };
+
+  for (let i = 0; i < text.length; i += 1) {
+    const char = text[i];
+
+    if (inQuotes) {
+      if (char === '"') {
+        if (text[i + 1] === '"') {
+          // Escaped quote: emit one quote and skip its pair.
+          field += '"';
+          i += 1;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        field += char;
+      }
+      continue;
+    }
+
+    if (char === '"') {
+      inQuotes = true;
+      fieldWasQuoted = true;
+    } else if (char === ",") {
+      pushField();
+    } else if (char === "\r" || char === "\n") {
+      // Treat CRLF as a single line break.
+      if (char === "\r" && text[i + 1] === "\n") i += 1;
+      pushRow();
+    } else {
+      field += char;
+    }
+  }
+
+  // Flush the trailing field unless the input ended on a line break.
+  if (field !== "" || row.length > 0 || fieldWasQuoted) {
+    pushRow();
+  }
+
+  return rows;
+}
+
+/**
+ * Parse CSV text into a preview structure.
+ *
+ * Blank lines are ignored so a trailing newline does not inflate `totalRows`.
+ */
 export function parseCsvPreview(text: string, maxRows: number = 10): CsvPreview {
-  const lines = text.trim().split("\n");
-  if (lines.length === 0) return { headers: [], rows: [], totalRows: 0 };
+  const rows = parseCsvRows(text);
+  const [headers = [], ...dataRows] = rows;
 
-  const headers = parseCsvLine(lines[0]);
-  const rows = lines.slice(1, maxRows + 1).map(parseCsvLine);
-  const totalRows = lines.length - 1;
+  const populatedRows = dataRows.filter(
+    (row) => !(row.length === 1 && row[0] === ""),
+  );
 
-  return { headers, rows, totalRows };
+  return {
+    headers,
+    rows: populatedRows.slice(0, maxRows),
+    totalRows: populatedRows.length,
+  };
 }
 
 /** Parse JSON text into a preview structure matching the backend parser.
@@ -103,21 +182,3 @@ export function parseJsonPreview(text: string, maxRows: number = 10): CsvPreview
   return { headers, rows, totalRows };
 }
 
-function parseCsvLine(line: string): string[] {
-  const cells: string[] = [];
-  let current = "";
-  let inQuotes = false;
-
-  for (const char of line) {
-    if (char === '"') {
-      inQuotes = !inQuotes;
-    } else if (char === "," && !inQuotes) {
-      cells.push(current.trim());
-      current = "";
-    } else {
-      current += char;
-    }
-  }
-  cells.push(current.trim());
-  return cells;
-}
