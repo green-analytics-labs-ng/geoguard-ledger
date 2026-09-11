@@ -9,8 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.uploads import read_upload
 from app.db.session import get_db
 from app.models.dataset import Dataset
-from app.services.hasher import compute_hash
-from app.services.parser import is_supported, parse_to_csv
+from app.services.ingest import process_upload
+from app.services.parser import describe_supported_formats, is_supported
 from app.services.soroban import verify_on_chain
 
 router = APIRouter(prefix="/verify")
@@ -28,7 +28,7 @@ async def verify_dataset(
     Supports three modes:
     1. Provide a ``dataset_hash`` to directly query the contract.
     2. Provide a ``dataset_id`` to look up the hash from the database.
-    3. Upload a CSV or JSON file to re-compute the hash and verify.
+    3. Upload a CSV, JSON or XML file to re-compute the hash and verify.
     """
     resolved_hash: str | None = dataset_hash
     re_computed_hash: str | None = None
@@ -47,16 +47,15 @@ async def verify_dataset(
                 "created_at": ds.created_at.isoformat() if ds.created_at else None,
             }
 
-    # Mode 3: If file provided (CSV or JSON), re-compute the hash
+    # Mode 3: If a file was provided, re-compute its hash and verify
     if file:
         if not file.filename or not is_supported(file.filename):
             raise HTTPException(
                 status_code=400,
-                detail="File must be a .csv or .json file",
+                detail=f"File must be one of: {describe_supported_formats()}",
             )
         content = await read_upload(file)
-        csv_text = parse_to_csv(content, file.filename)
-        re_computed_hash = compute_hash(csv_text)
+        re_computed_hash = process_upload(content, file.filename).dataset_hash
         resolved_hash = re_computed_hash
 
     # Query the contract
