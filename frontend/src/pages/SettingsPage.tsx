@@ -86,7 +86,7 @@ export default function SettingsPage() {
           <h2 className="text-lg font-semibold mb-4">About</h2>
           <div className="space-y-2 text-sm text-gray-600">
             <p>
-              <strong>GeoGuard Ledger</strong> v0.1.0
+              <strong>GeoGuard Ledger</strong> v0.2.0
             </p>
             <p>
               An open-source research integrity system for geochemical data
