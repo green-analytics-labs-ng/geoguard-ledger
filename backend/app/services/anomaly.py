@@ -22,6 +22,7 @@ from sklearn.ensemble import IsolationForest
 
 from app.config import settings
 from app.core.exceptions import AnomalyDetectionError
+from app.services.validation import check_ranges
 
 logger = logging.getLogger(__name__)
 
@@ -111,6 +112,22 @@ def _flag_via_iqr(scores: np.ndarray, multiplier: float = _IQR_MULTIPLIER) -> np
     return scores < lower_fence
 
 
+def _range_warnings(df: pd.DataFrame) -> list[str]:
+    """Run the geochemical plausibility checks, never failing the upload.
+
+    These checks are advisory metadata, so any unexpected failure degrades to
+    "no warnings" rather than rejecting an otherwise valid dataset.
+    """
+    if not settings.geochemical_validation_enabled:
+        return []
+
+    try:
+        return check_ranges(df)
+    except Exception as exc:  # noqa: BLE001 - must not break ingestion
+        logger.warning("Geochemical range validation failed: %s", exc)
+        return []
+
+
 def _build_summary(dataset_score: float, n_rows: int, n_flagged: int) -> str:
     """Produce a human-readable summary string (no emoji, ASCII-safe)."""
     pct = (n_flagged / n_rows * 100) if n_rows else 0.0
@@ -149,6 +166,9 @@ def run_anomaly_detection(csv_text: str) -> dict[str, Any]:
             - flags (list[int]): 1-indexed row indices flagged as anomalous.
             - model_version (str): Version tag (``ai_model_version`` from config).
             - summary (str): Human-readable one-line description.
+            - warnings (list[str]): Geochemical plausibility findings, which are
+              independent of the statistical model and therefore also reported
+              for datasets too small to score.
 
     Raises:
         AnomalyDetectionError: If the CSV is empty, has too few numeric
@@ -161,6 +181,9 @@ def run_anomaly_detection(csv_text: str) -> dict[str, Any]:
 
     if raw_df.empty:
         raise AnomalyDetectionError("CSV file is empty", status_code=400)
+
+    # Domain checks run against the raw columns, independently of the model.
+    warnings = _range_warnings(raw_df)
 
     features = _extract_features(raw_df)
     n_rows = len(features)
@@ -181,6 +204,7 @@ def run_anomaly_detection(csv_text: str) -> dict[str, Any]:
                 f"[SKIPPED] Dataset has only {n_rows} rows"
                 f" (< {_MIN_ROWS} minimum). No anomaly detection performed."
             ),
+            "warnings": warnings,
         }
 
     # Fit Isolation Forest on this dataset's features.
@@ -226,4 +250,5 @@ def run_anomaly_detection(csv_text: str) -> dict[str, Any]:
         "flags": flags,
         "model_version": settings.ai_model_version,
         "summary": summary,
+        "warnings": warnings,
     }

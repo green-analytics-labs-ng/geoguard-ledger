@@ -59,6 +59,11 @@ class Dataset(Base):
         nullable=True,
         comment="Human-readable anomaly summary string",
     )
+    anomaly_warnings: Mapped[list[str] | None] = mapped_column(
+        JSON,
+        nullable=True,
+        comment="Geochemical plausibility findings raised at upload time",
+    )
 
     # Transaction data
     unsigned_transaction_xdr: Mapped[str | None] = mapped_column(

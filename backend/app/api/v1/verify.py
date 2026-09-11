@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.uploads import read_upload
 from app.db.session import get_db
 from app.models.dataset import Dataset
 from app.services.hasher import compute_hash
@@ -53,7 +54,7 @@ async def verify_dataset(
                 status_code=400,
                 detail="File must be a .csv or .json file",
             )
-        content = await file.read()
+        content = await read_upload(file)
         csv_text = parse_to_csv(content, file.filename)
         re_computed_hash = compute_hash(csv_text)
         resolved_hash = re_computed_hash

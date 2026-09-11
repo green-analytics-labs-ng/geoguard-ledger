@@ -1,12 +1,17 @@
 """End-to-end API test for Docker. Run via:
-    docker cp backend/tests/test_full_api.py <container>:/tmp/ \
-    && docker exec <container> python3 /tmp/test_full_api.py
+    docker cp backend/tests/e2e_full_api.py <container>:/tmp/ \
+    && docker exec <container> python3 /tmp/e2e_full_api.py
 """
 
 import json
+import os
 import urllib.request
 
 BASE = "http://localhost:8000/api/v1"
+
+# Stellar public key used as the submitter. Public keys are not secrets, but
+# this is configurable so the smoke test is not tied to one account.
+SUBMITTER_PUBLIC_KEY = os.environ.get("SUBMITTER_PUBLIC_KEY", "G" + "A" * 55)
 
 # Step 1: Health check
 print("=== Step 1: Health Check ===")
@@ -34,7 +39,7 @@ body_parts = [
     "--" + boundary,
     'Content-Disposition: form-data; name="submitter_address"',
     "",
-    "GCYZFJLXVXHL3RN2XECSLGTS2NPMHWGJUYTZWKNNELRML56NBJY5YRRG",
+    SUBMITTER_PUBLIC_KEY,
     "--" + boundary,
     'Content-Disposition: form-data; name="file"; filename="sample.csv"',
     "Content-Type: text/csv",

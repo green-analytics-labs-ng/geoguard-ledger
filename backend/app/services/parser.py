@@ -2,13 +2,17 @@
 
 Converts any supported format into a canonical CSV string for
 compatibility with the existing hasher and anomaly detection pipeline.
+
+JSON values are serialized without type coercion: integers stay integers, so
+the same data uploaded as JSON and as CSV hashes identically.
 """
 
+import csv
 import io
 import json
+import math
+from decimal import Decimal
 from typing import Any
-
-import pandas as pd
 
 from app.core.exceptions import GeoGuardError
 
@@ -84,6 +88,10 @@ def _parse_json(content: bytes) -> str:
 
     Columns are sorted alphabetically so that the resulting CSV is
     deterministic regardless of key ordering in the JSON.
+
+    Cells are rendered from their JSON types rather than via a DataFrame, so
+    an integer ``3`` stays ``3`` (never ``3.0``) and missing keys stay empty
+    strings. This keeps JSON- and CSV-originated hashes identical.
     """
     try:
         json_text = content.decode("utf-8")
@@ -112,18 +120,57 @@ def _parse_json(content: bytes) -> str:
     if len(records) == 0:
         raise ParseError("JSON data array is empty")
 
-    if not all(isinstance(r, dict) for r in records):
-        raise ParseError("JSON array must contain only objects")
+    rows = _as_rows(records)
 
-    # Build DataFrame and re-export to canonical CSV
-    try:
-        df = pd.DataFrame(records)
-    except Exception as exc:
-        raise ParseError(f"Failed to convert JSON to tabular data: {exc}") from exc
-
-    # Sort columns alphabetically for deterministic output
-    df = df.reindex(columns=sorted(df.columns))
+    # Union of every key across all records, sorted for determinism.
+    columns = sorted({key for row in rows for key in row})
 
     output = io.StringIO()
-    df.to_csv(output, index=False)
+    writer = csv.writer(output, lineterminator="\n")
+    writer.writerow(columns)
+    for row in rows:
+        writer.writerow([_render_cell(row.get(column)) for column in columns])
+
     return output.getvalue()
+
+
+def _as_rows(records: list[Any]) -> list[dict[str, Any]]:
+    """Validate and normalise JSON records into a list of string-keyed dicts."""
+    rows: list[dict[str, Any]] = []
+    for record in records:
+        if not isinstance(record, dict):
+            raise ParseError("JSON array must contain only objects")
+        rows.append({str(key): value for key, value in record.items()})
+    return rows
+
+
+def _render_cell(value: Any) -> str:
+    """Render a JSON value as a CSV cell without coercion.
+
+    Integers are rendered verbatim so they cannot be float-ified into ``3.0``,
+    which would break hash equivalence between JSON and CSV uploads.
+    """
+    if value is None:
+        return ""
+    if isinstance(value, int):
+        return str(value)
+    if isinstance(value, float):
+        return _render_float(value)
+    if isinstance(value, str):
+        return value
+    # Nested objects/arrays: canonical JSON keeps the cell deterministic.
+    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+
+
+def _render_float(value: float) -> str:
+    """Render a float without an exponent so the CSV stays stable and readable.
+
+    ``Decimal(repr(value))`` keeps the shortest round-trippable representation
+    and ``format(..., "f")`` expands it, so ``1e-07`` becomes ``0.0000001``
+    instead of leaking scientific notation into the cell.
+    """
+    if not math.isfinite(value):
+        # JSON has no representation for NaN/Infinity; drop them like empty cells.
+        return ""
+
+    return format(Decimal(repr(value)), "f")

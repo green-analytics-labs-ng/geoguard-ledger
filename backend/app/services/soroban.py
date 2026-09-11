@@ -60,6 +60,38 @@ def _get_server() -> SorobanServer:
     return _server
 
 
+# ── Connectivity ──────────────────────────────────────────────────
+
+
+async def check_rpc_connectivity() -> bool:
+    """Probe the configured Soroban RPC endpoint for real.
+
+    Calls the RPC's ``getHealth`` method with a short timeout so the health
+    endpoint reflects reality instead of assuming connectivity. Any failure
+    (timeout, HTTP error, error response, or a non-healthy status) reports the
+    node as unreachable.
+
+    Returns:
+        ``True`` only when the RPC answered and reported a healthy status.
+    """
+    server = _get_server()
+
+    try:
+        health = await asyncio.wait_for(
+            asyncio.to_thread(server.get_health),
+            timeout=settings.soroban_rpc_health_timeout_seconds,
+        )
+    except Exception as exc:  # noqa: BLE001 - any failure means "unreachable"
+        logger.warning("Soroban RPC health check failed: %s", exc)
+        return False
+
+    if health.status != "healthy":
+        logger.warning("Soroban RPC reported unhealthy status: %s", health.status)
+        return False
+
+    return True
+
+
 # ── Transaction Building ──────────────────────────────────────────
 
 
