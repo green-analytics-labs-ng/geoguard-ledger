@@ -27,7 +27,7 @@ If applicable, add screenshots or log output to help explain your problem.
 - Browser: [e.g. Chrome 120, Firefox 121]
 - Freighter Wallet Version: [e.g. 5.20.0]
 - Network: [e.g. Stellar Testnet]
-- GeoGuard Ledger Version: [e.g. 0.1.0]
+- GeoGuard Ledger Version: [e.g. 0.2.0]
 
 ## Smart Contract (if applicable)
 - Contract ID:
