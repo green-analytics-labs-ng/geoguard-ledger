@@ -35,8 +35,12 @@ describe("isSupportedFormat", () => {
     expect(isSupportedFormat("data.txt")).toBe(false);
   });
 
-  it("rejects .xml", () => {
-    expect(isSupportedFormat("data.xml")).toBe(false);
+  it("accepts .xml", () => {
+    expect(isSupportedFormat("data.xml")).toBe(true);
+  });
+
+  it("is case-insensitive for uppercase .XML", () => {
+    expect(isSupportedFormat("DATA.XML")).toBe(true);
   });
 
   it("rejects no extension", () => {
@@ -69,9 +73,16 @@ describe("validateDataFile", () => {
     expect(validateDataFile(file)).toBeNull();
   });
 
+  it("accepts a valid .xml File", () => {
+    const file = new File(["<report><row><a>1</a></row></report>"], "data.xml", {
+      type: "application/xml",
+    });
+    expect(validateDataFile(file)).toBeNull();
+  });
+
   it("rejects unsupported extension", () => {
     const file = new File(["hello"], "data.txt", { type: "text/plain" });
-    expect(validateDataFile(file)).toBe("File must be a .csv or .json");
+    expect(validateDataFile(file)).toBe("File must be a .csv, .json, or .xml");
   });
 
   it("rejects empty file", () => {
@@ -82,7 +93,7 @@ describe("validateDataFile", () => {
 
   it("rejects file with no extension", () => {
     const file = new File(["data"], "data", { type: "application/octet-stream" });
-    expect(validateDataFile(file)).toBe("File must be a .csv or .json");
+    expect(validateDataFile(file)).toBe("File must be a .csv, .json, or .xml");
   });
 });
 
@@ -96,7 +107,7 @@ describe("validateCsvFile", () => {
 
   it("rejects unsupported extensions same as validateDataFile", () => {
     const file = new File(["hello"], "data.txt", { type: "text/plain" });
-    expect(validateCsvFile(file)).toBe("File must be a .csv or .json");
+    expect(validateCsvFile(file)).toBe("File must be a .csv, .json, or .xml");
   });
 });
 

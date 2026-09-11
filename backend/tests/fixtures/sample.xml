@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Exported from a field LIMS. Same logical data as sample.csv. -->
+<GeochemistryReport generated="2026-07-05T12:00:00Z">
+  <sample id="S001" latitude="34.052200" longitude="-118.243700">
+    <pH>7.20</pH>
+    <conductivity>450.00</conductivity>
+    <dissolved_oxygen>8.50</dissolved_oxygen>
+    <temperature>22.10</temperature>
+  </sample>
+  <sample id="S002" latitude="34.052500" longitude="-118.244000">
+    <pH>7.15</pH>
+    <conductivity>452.00</conductivity>
+    <dissolved_oxygen>8.30</dissolved_oxygen>
+    <temperature>22.30</temperature>
+  </sample>
+  <sample id="S003" latitude="34.052800" longitude="-118.244300">
+    <pH>7.18</pH>
+    <conductivity>448.00</conductivity>
+    <dissolved_oxygen>8.70</dissolved_oxygen>
+    <temperature>22.00</temperature>
+  </sample>
+  <sample id="S004" latitude="34.053100" longitude="-118.244600">
+    <pH>7.22</pH>
+    <conductivity>455.00</conductivity>
+    <dissolved_oxygen>8.40</dissolved_oxygen>
+    <temperature>22.20</temperature>
+  </sample>
+  <sample id="S005" latitude="34.053400" longitude="-118.244900">
+    <pH>7.19</pH>
+    <conductivity>449.00</conductivity>
+    <dissolved_oxygen>8.60</dissolved_oxygen>
+    <temperature>22.40</temperature>
+  </sample>
+</GeochemistryReport>

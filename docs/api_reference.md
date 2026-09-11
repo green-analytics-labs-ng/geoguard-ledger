@@ -13,13 +13,35 @@ http://localhost:8000/api/v1
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/health` | Health check (probes Soroban RPC connectivity) |
-| `POST` | `/datasets` | Upload and process a CSV or JSON dataset |
+| `POST` | `/datasets` | Upload and process a CSV, JSON, or XML dataset |
 | `POST` | `/datasets/{id}/submit` | Submit a signed transaction to Stellar |
 | `GET` | `/datasets` | List all datasets |
 | `GET` | `/datasets/{id}` | Get dataset details |
 | `POST` | `/verify` | Verify a dataset against on-chain proof |
 
 For full request/response schemas, see [SPECIFICATION.md](../SPECIFICATION.md#5-backend-api-specification-fastapi).
+
+## Supported upload formats
+
+`POST /datasets` and the file mode of `POST /verify` accept three formats,
+detected from the filename extension (case-insensitive):
+
+| Extension | Hashing | Analysis |
+|-----------|---------|----------|
+| `.csv` | Canonical CSV (RFC 4180 parsing, UTF-8, normalized line endings, numeric truncation) | Parsed as CSV |
+| `.json` | Same canonical CSV as the equivalent CSV upload | Parsed as CSV |
+| `.xml` | Canonical XML bytes | Flattened with `pandas.read_xml` |
+
+Uploads that carry the same information produce the same `dataset_hash`
+regardless of formatting. CSV and JSON are normalized to one canonical CSV form
+(so an integer stays an integer and hashes identically in both). XML is never
+converted to CSV before hashing — element structure and attributes are part of
+the fingerprint — and is canonicalized as XML: comments and processing
+instructions are dropped, attributes are sorted alphabetically, insignificant
+whitespace is removed, and no BOM is emitted.
+
+Malformed XML, XML with fewer than two numeric feature columns, and unsupported
+extensions (for example `.txt`) are rejected with `400 Bad Request`.
 
 ## Health check
 

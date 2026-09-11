@@ -12,8 +12,8 @@ from app.core.uploads import read_upload
 from app.db.session import get_db
 from app.models.dataset import Dataset
 from app.services.anomaly import run_anomaly_detection
-from app.services.hasher import compute_hash
-from app.services.parser import is_supported, parse_to_csv
+from app.services.ingest import process_upload
+from app.services.parser import describe_supported_formats, is_supported
 from app.services.soroban import build_anchor_transaction, submit_transaction
 
 router = APIRouter(prefix="/datasets")
@@ -86,21 +86,21 @@ async def create_dataset(
             detail="Invalid Stellar public key — must start with 'G'",
         )
 
-    # Validate file format (CSV or JSON)
+    # Validate file format (CSV, JSON or XML)
     if not file.filename or not is_supported(file.filename):
         raise HTTPException(
             status_code=400,
-            detail="File must be a .csv or .json file",
+            detail=f"File must be one of: {describe_supported_formats()}",
         )
 
     content = await read_upload(file)
-    csv_text = parse_to_csv(content, file.filename)
+    processed = process_upload(content, file.filename)
 
-    # Compute SHA-256 hash
-    dataset_hash = compute_hash(csv_text)
+    # SHA-256 over the canonicalized upload
+    dataset_hash = processed.dataset_hash
 
-    # Run AI anomaly detection
-    anomaly_result = run_anomaly_detection(csv_text)
+    # Run AI anomaly detection on the same canonical representation
+    anomaly_result = run_anomaly_detection(processed.analysis_text, processed.file_format)
 
     # Build unsigned Soroban transaction
     xdr = await build_anchor_transaction(submitter_address, dataset_hash, anomaly_result)

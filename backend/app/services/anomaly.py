@@ -1,7 +1,7 @@
 """AI anomaly detection service.
 
 Uses Isolation Forest to detect anomalous rows in geochemical data.
-The model is fit **per-dataset** on the numeric columns of the uploaded CSV,
+The model is fit **per-dataset** on the numeric columns of the uploaded data,
 making it unsupervised and adaptive to whatever features are present.
 
 Rows are flagged using the **IQR method** on the raw decision-function scores,
@@ -22,6 +22,7 @@ from sklearn.ensemble import IsolationForest
 
 from app.config import settings
 from app.core.exceptions import AnomalyDetectionError
+from app.services.parser import FileFormat
 from app.services.validation import check_ranges
 
 logger = logging.getLogger(__name__)
@@ -61,6 +62,26 @@ _COORD_COLUMNS = frozenset(
 )
 
 
+def _read_source(source_text: str, file_format: FileFormat) -> pd.DataFrame:
+    """Parse the analysable text into a DataFrame.
+
+    CSV and JSON both arrive as canonical CSV. XML is flattened with
+    ``pandas.read_xml``, whose default ``xpath`` maps each repeating child
+    element to a row and its attributes plus child elements to columns.
+
+    Raises:
+        AnomalyDetectionError: If the content cannot be parsed.
+    """
+    try:
+        if file_format == "xml":
+            return pd.read_xml(io.StringIO(source_text), parser="etree")
+        return pd.read_csv(io.StringIO(source_text))
+    except Exception as exc:
+        raise AnomalyDetectionError(
+            f"Failed to parse {file_format.upper()}: {exc}", status_code=400
+        ) from exc
+
+
 def _extract_features(df: pd.DataFrame) -> pd.DataFrame:
     """Return a DataFrame of numeric feature columns suitable for anomaly detection.
 
@@ -79,7 +100,7 @@ def _extract_features(df: pd.DataFrame) -> pd.DataFrame:
 
     if features.shape[1] < 2:
         raise AnomalyDetectionError(
-            "CSV must contain at least 2 numeric feature columns "
+            "Dataset must contain at least 2 numeric feature columns "
             "(latitude/longitude alone is insufficient)",
             status_code=400,
         )
@@ -151,14 +172,19 @@ def _build_summary(dataset_score: float, n_rows: int, n_flagged: int) -> str:
 # ── Public API ────────────────────────────────────────────────────
 
 
-def run_anomaly_detection(csv_text: str) -> dict[str, Any]:
-    """Run anomaly detection on a CSV dataset.
+def run_anomaly_detection(
+    source_text: str,
+    file_format: FileFormat = "csv",
+) -> dict[str, Any]:
+    """Run anomaly detection on a dataset.
 
-    Fits an Isolation Forest on the numeric columns of the CSV (per-call),
+    Fits an Isolation Forest on the numeric columns of the dataset (per-call),
     scores each row, and uses the IQR method to flag anomalous rows.
 
     Args:
-        csv_text: Raw CSV content as a string.
+        source_text: The dataset as canonical CSV, or canonical XML.
+        file_format: ``"csv"``, ``"json"`` or ``"xml"``. CSV and JSON are both
+            parsed as CSV because they share a canonical representation.
 
     Returns:
         dict with keys:
@@ -174,13 +200,10 @@ def run_anomaly_detection(csv_text: str) -> dict[str, Any]:
         AnomalyDetectionError: If the CSV is empty, has too few numeric
             columns, or cannot be parsed.
     """
-    try:
-        raw_df = pd.read_csv(io.StringIO(csv_text))
-    except Exception as exc:
-        raise AnomalyDetectionError(f"Failed to parse CSV: {exc}", status_code=400) from exc
+    raw_df = _read_source(source_text, file_format)
 
     if raw_df.empty:
-        raise AnomalyDetectionError("CSV file is empty", status_code=400)
+        raise AnomalyDetectionError("Dataset is empty", status_code=400)
 
     # Domain checks run against the raw columns, independently of the model.
     warnings = _range_warnings(raw_df)

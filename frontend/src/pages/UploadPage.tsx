@@ -116,8 +116,9 @@ export default function UploadPage() {
           Upload Dataset
         </h1>
         <p className="text-sm text-gray-500 mb-8">
-          Upload a geochemical dataset (CSV or JSON). The data will be hashed,
-          analyzed for anomalies, and anchored to the Stellar blockchain.
+          Upload a geochemical dataset (CSV, JSON, or XML). The data will be
+          hashed, analyzed for anomalies, and anchored to the Stellar
+          blockchain.
         </p>
 
         {/* Stepper */}
