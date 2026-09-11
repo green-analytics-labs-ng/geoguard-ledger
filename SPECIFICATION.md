@@ -294,7 +294,7 @@ event Anchored {
 
 ### 4.6 Error Handling
 
-The contract defines five error variants for predictable error handling by clients (backend and frontend). These are surfaced as `Symbol` values in failed transaction result codes:
+The contract defines five error variants for predictable error handling by clients (backend and frontend). Each maps to a numeric contract error code returned in the failed transaction result, so clients can branch on it programmatically:
 
 | Code | Variant | Description |
 |:---:|---|-----------|
@@ -306,6 +306,8 @@ The contract defines five error variants for predictable error handling by clien
 
 ```rust
 /// Defined in contracts/geoguard-ledger/src/errors.rs
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[contracterror]
 pub enum Error {
     NotInitialized = 1,
     AlreadyInitialized = 2,
