@@ -123,9 +123,10 @@ describe("parseCsvPreview", () => {
   });
 
   it("handles empty input", () => {
-    // empty string → split produces [""] → single empty header
+    // No rows at all: there is no header to speak of.
     const result = parseCsvPreview("");
-    expect(result.headers).toEqual([""]);
+    expect(result.headers).toEqual([]);
+    expect(result.rows).toEqual([]);
     expect(result.totalRows).toBe(0);
   });
 

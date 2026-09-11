@@ -711,14 +711,17 @@ backend/tests/
 **Framework:** Vitest + React Testing Library.
 
 **Key patterns:**
-- Component tests: render components with mock API responses.
-- Hook tests: test `useWallet`, `useDatasets`, `useVerify` in isolation with mocked Freighter API.
-- Utility tests: CSV parsing, Stellar helper functions.
+- Component tests: render components and assert on user-visible output, not merely that a component is exported.
+- Hook tests: exercise `useDatasets` and `useVerify` in isolation with mocked API modules.
+- Routing tests: pin the `routes.tsx` table and render `App` at each path, with Freighter mocked.
+- Utility tests: CSV parsing (including RFC 4180 quoting), Stellar helper functions.
 
 **Coverage targets:**
 - All UI states: loading, success, error, empty.
-- CsvDropzone: file validation (.csv only), size limits, preview rendering.
-- WalletConnector: connected, disconnected, wrong network states.
+- CsvDropzone: file validation, size limits, preview rendering, drag-and-drop.
+- WalletConnector: connected, disconnected, error states.
+- AnomalyBadge: every score tier and size; AnomalyWarnings: error vs warning styling.
+- DatasetTable, SubmissionStepper and ErrorBoundary: every render state, including recovery.
 
 **Run:** `cd frontend && npm test`
 

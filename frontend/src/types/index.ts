@@ -13,6 +13,12 @@ export interface AnomalyReport {
   flags: number[];
   model_version: string;
   summary: string;
+  /**
+   * Geochemical plausibility findings from deterministic range checks, e.g.
+   * `"[ERROR] pH: 1 value(s) outside the plausible range 0 to 14 (rows 4)"`.
+   * Present even when the dataset is too small for the statistical model.
+   */
+  warnings?: string[];
 }
 
 export interface DatasetCreateResponse {
