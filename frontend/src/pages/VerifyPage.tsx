@@ -134,11 +134,11 @@ export default function VerifyPage() {
         {mode === "file" && (
           <div className="card mb-6">
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Upload CSV to Re-Compute Hash
+              Upload a data file to re-compute its hash
             </label>
             <input
               type="file"
-              accept=".csv"
+              accept=".csv,.json,.xml"
               onChange={handleFileSelect}
               className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-stellar file:text-white hover:file:bg-blue-700 file:cursor-pointer file:transition-colors"
             />

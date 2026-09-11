@@ -5,6 +5,17 @@ import {
   parseJsonPreview,
   type CsvPreview,
 } from "../utils/csv";
+import { parseXmlPreview } from "../utils/xml";
+
+type FileKind = "csv" | "json" | "xml";
+
+/** Detect the parser to use from the file extension. */
+function detectKind(filename: string): FileKind {
+  const lower = filename.toLowerCase();
+  if (lower.endsWith(".json")) return "json";
+  if (lower.endsWith(".xml")) return "xml";
+  return "csv";
+}
 
 interface Props {
   onFileSelected: (file: File, preview: CsvPreview) => void;
@@ -27,23 +38,35 @@ export default function CsvDropzone({ onFileSelected }: Props) {
         return;
       }
 
-      const isJson = file.name.toLowerCase().endsWith(".json");
+      const kind = detectKind(file.name);
 
       const reader = new FileReader();
       reader.onload = () => {
         const text = reader.result as string;
-        const parsed = isJson ? parseJsonPreview(text) : parseCsvPreview(text);
+        const parsed =
+          kind === "json"
+            ? parseJsonPreview(text)
+            : kind === "xml"
+              ? parseXmlPreview(text)
+              : parseCsvPreview(text);
+
         if (parsed.headers.length === 0) {
           setError(
-            isJson
+            kind === "json"
               ? 'Could not parse JSON — expected an array of objects or a {"data": [...]} wrapper'
-              : "Could not parse CSV headers",
+              : kind === "xml"
+                ? "Could not parse XML — expected repeating child elements under the root"
+                : "Could not parse CSV headers",
           );
           return;
         }
         if (parsed.totalRows === 0) {
           setError(
-            isJson ? "JSON data is empty" : "CSV has no data rows",
+            kind === "json"
+              ? "JSON data is empty"
+              : kind === "xml"
+                ? "XML data is empty"
+                : "CSV has no data rows",
           );
           return;
         }
@@ -105,7 +128,7 @@ export default function CsvDropzone({ onFileSelected }: Props) {
         <input
           ref={inputRef}
           type="file"
-          accept=".csv,.json"
+          accept=".csv,.json,.xml"
           className="hidden"
           onChange={handleInputChange}
         />
@@ -125,10 +148,10 @@ export default function CsvDropzone({ onFileSelected }: Props) {
         <p className="text-gray-600 font-medium">
           {dragging
             ? "Drop your data file here"
-            : "Drop a CSV or JSON file here, or click to browse"}
+            : "Drop a CSV, JSON, or XML file here, or click to browse"}
         </p>
         <p className="text-gray-400 text-sm mt-1">
-          .csv or .json files (max 50 MB)
+          .csv, .json, or .xml files (max 50 MB)
         </p>
       </div>
 

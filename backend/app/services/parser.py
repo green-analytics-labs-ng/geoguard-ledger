@@ -1,18 +1,22 @@
-"""File format parser. Supports CSV and JSON uploads.
+"""File format parser. Supports CSV, JSON and XML uploads.
 
-Converts any supported format into a canonical CSV string for
-compatibility with the existing hasher and anomaly detection pipeline.
+CSV and JSON are converted into a canonical CSV string for compatibility with
+hasher and anomaly detection pipeline. JSON values are serialized without type
+coercion: integers stay integers, so the same data uploaded as JSON and as CSV
+hashes identically.
 
-JSON values are serialized without type coercion: integers stay integers, so
-the same data uploaded as JSON and as CSV hashes identically.
+XML is different: it is canonicalized into deterministic XML bytes (see
+``canonicalize_xml``) rather than converted to CSV, because a tabular
+round-trip would discard structure and attribute information.
 """
 
 import csv
 import io
 import json
 import math
+import xml.etree.ElementTree as ET
 from decimal import Decimal
-from typing import Any
+from typing import Any, Literal
 
 from app.core.exceptions import GeoGuardError
 
@@ -24,8 +28,17 @@ class ParseError(GeoGuardError):
         super().__init__(message, status_code=400)
 
 
+FileFormat = Literal["csv", "json", "xml"]
+
+# Single source of truth for accepted extensions and their format names.
+_EXTENSION_TO_FORMAT: dict[str, FileFormat] = {
+    ".csv": "csv",
+    ".json": "json",
+    ".xml": "xml",
+}
+
 # Accepted file format extensions (lowercase, with leading dot)
-SUPPORTED_EXTENSIONS: frozenset[str] = frozenset({".csv", ".json"})
+SUPPORTED_EXTENSIONS: frozenset[str] = frozenset(_EXTENSION_TO_FORMAT)
 
 
 def get_extension(filename: str) -> str:
@@ -38,6 +51,34 @@ def get_extension(filename: str) -> str:
 def is_supported(filename: str) -> bool:
     """Check if the filename has a supported extension."""
     return get_extension(filename) in SUPPORTED_EXTENSIONS
+
+
+def describe_supported_formats() -> str:
+    """Human-readable list of accepted extensions, e.g. ``'.csv, .json, .xml'``."""
+    return ", ".join(sorted(SUPPORTED_EXTENSIONS))
+
+
+def get_file_format(filename: str | None) -> FileFormat:
+    """Return the canonical format name for a supported filename.
+
+    Raises:
+        ParseError: If the filename is missing or has an unsupported extension.
+    """
+    if not filename:
+        raise ParseError("Filename is required to detect file format")
+
+    ext = get_extension(filename)
+    file_format = _EXTENSION_TO_FORMAT.get(ext)
+
+    if file_format is None:
+        raise ParseError(
+            "Unsupported file format: "
+            + repr(ext if ext else "no extension")
+            + ". Accepted formats: "
+            + describe_supported_formats()
+        )
+
+    return file_format
 
 
 def parse_to_csv(content: bytes, filename: str | None) -> str:
@@ -62,6 +103,14 @@ def parse_to_csv(content: bytes, filename: str | None) -> str:
         return _parse_csv(content)
     elif ext == ".json":
         return _parse_json(content)
+    elif ext == ".xml":
+        # XML is not converted to CSV: it is canonicalized and hashed as XML,
+        # then flattened for analysis by the anomaly service. See
+        # app.services.ingest.process_upload.
+        raise ParseError(
+            "XML files are canonicalized rather than converted to CSV; "
+            "use app.services.ingest.process_upload()"
+        )
     else:
         raise ParseError(
             "Unsupported file format: "
@@ -132,6 +181,72 @@ def _parse_json(content: bytes) -> str:
         writer.writerow([_render_cell(row.get(column)) for column in columns])
 
     return output.getvalue()
+
+
+# ── XML path ──────────────────────────────────────────────────────
+
+
+def canonicalize_xml(content: bytes) -> bytes:
+    """Canonicalize an XML document into deterministic UTF-8 bytes.
+
+    The rules are deliberately simple - this is not full W3C C14N - but they
+    are reproducible, so two XML files that carry the same information produce
+    the same bytes and therefore the same hash:
+
+    1. Comments and processing instructions are dropped.
+    2. Attribute names are sorted alphabetically within every element.
+    3. Whitespace-only text/tail nodes (pretty-printing indentation) are
+       removed, while text that carries data is preserved verbatim.
+    4. Empty elements use their short form (``<a/>``).
+    5. Output is UTF-8 with no BOM and no XML declaration.
+
+    Args:
+        content: Raw file bytes. A leading UTF-8 BOM is tolerated.
+
+    Returns:
+        Canonical UTF-8 bytes suitable for hashing.
+
+    Raises:
+        ParseError: If the bytes are not UTF-8 or the document is malformed.
+    """
+    try:
+        text = content.decode("utf-8-sig")
+    except UnicodeDecodeError as exc:
+        raise ParseError(f"XML file must be UTF-8 encoded: {exc}") from exc
+
+    try:
+        # ElementTree discards comments and processing instructions by default.
+        root = ET.fromstring(text)
+    except ET.ParseError as exc:
+        raise ParseError(f"Malformed XML: {exc}") from exc
+
+    canonical: bytes = ET.tostring(
+        _canonicalize_element(root),
+        encoding="utf-8",
+        xml_declaration=False,
+        short_empty_elements=True,
+    )
+    return canonical
+
+
+def _canonicalize_element(element: ET.Element) -> ET.Element:
+    """Rebuild an element with sorted attributes and no insignificant whitespace."""
+    rebuilt = ET.Element(element.tag, dict(sorted(element.attrib.items())))
+    rebuilt.text = _drop_insignificant_whitespace(element.text)
+
+    for child in element:
+        rebuilt_child = _canonicalize_element(child)
+        rebuilt_child.tail = _drop_insignificant_whitespace(child.tail)
+        rebuilt.append(rebuilt_child)
+
+    return rebuilt
+
+
+def _drop_insignificant_whitespace(value: str | None) -> str | None:
+    """Return ``None`` for whitespace-only text so indentation is not serialized."""
+    if value is None or not value.strip():
+        return None
+    return value
 
 
 def _as_rows(records: list[Any]) -> list[dict[str, Any]]:

@@ -1,4 +1,4 @@
-/** Client-side CSV and JSON file parsing and preview helpers. */
+/** Client-side CSV, JSON and XML file parsing and preview helpers. */
 
 export interface CsvPreview {
   headers: string[];
@@ -7,7 +7,7 @@ export interface CsvPreview {
 }
 
 const MAX_PREVIEW_SIZE = 50 * 1024 * 1024; // 50 MB
-const SUPPORTED_EXTENSIONS = [".csv", ".json"];
+const SUPPORTED_EXTENSIONS = [".csv", ".json", ".xml"];
 
 /** Check if a filename has a supported extension. */
 export function isSupportedFormat(filename: string): boolean {
@@ -16,10 +16,10 @@ export function isSupportedFormat(filename: string): boolean {
   );
 }
 
-/** Validate a data file (CSV or JSON) for size and format. */
+/** Validate a data file (CSV, JSON or XML) for size and format. */
 export function validateDataFile(file: File): string | null {
   if (!isSupportedFormat(file.name)) {
-    return "File must be a .csv or .json";
+    return "File must be a .csv, .json, or .xml";
   }
   if (file.size === 0) {
     return "File is empty";

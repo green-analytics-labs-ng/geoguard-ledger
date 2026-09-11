@@ -30,7 +30,7 @@
 
 **GeoGuard Ledger** is an open-source research integrity system purpose-built for **Green Analytics Labs**. It provides a verifiable chain of custody for geochemical datasets by:
 
-1. **Hashing** raw geochemical data (CSV uploads) to produce a tamper-evident fingerprint.
+1. **Hashing** raw geochemical data (CSV, JSON, and XML uploads) to produce a tamper-evident fingerprint.
 2. **Running AI-based anomaly detection** on the data to flag potential fabrication, instrumentation drift, or sampling errors.
 3. **Anchoring integrity proofs** (the hash + anomaly report metadata) immutably onto the **Stellar blockchain** via **Soroban** smart contracts.
 
@@ -129,7 +129,7 @@ The system enables any third party to independently verify that a dataset has no
 
 ```
 Step 1: UPLOAD
-    Researcher drags/drops a CSV file into the React frontend.
+    Researcher drags/drops a data file (CSV, JSON, or XML) into the React frontend.
     Frontend reads the file client-side and shows a preview (first 10 rows).
 
 Step 2: PREVIEW & CONFIRM
@@ -294,7 +294,7 @@ event Anchored {
 
 ### 4.6 Error Handling
 
-The contract defines five error variants for predictable error handling by clients (backend and frontend). These are surfaced as `Symbol` values in failed transaction result codes:
+The contract defines five error variants for predictable error handling by clients (backend and frontend). Each maps to a numeric contract error code returned in the failed transaction result, so clients can branch on it programmatically:
 
 | Code | Variant | Description |
 |:---:|---|-----------|
@@ -306,6 +306,8 @@ The contract defines five error variants for predictable error handling by clien
 
 ```rust
 /// Defined in contracts/geoguard-ledger/src/errors.rs
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[contracterror]
 pub enum Error {
     NotInitialized = 1,
     AlreadyInitialized = 2,
@@ -343,10 +345,20 @@ Upload and process a new geochemical dataset.
 **Request:**
 ```
 Content-Type: multipart/form-data
-  - file: CSV or JSON file (required)
+  - file: CSV, JSON, or XML file (required)
   - researcher_id: string (optional, derived from auth token in later phases)
   - hash_columns: string[] (optional, columns to include in hash)
 ```
+
+**Supported formats:** `.csv`, `.json`, and `.xml` (detected from the filename
+extension, case-insensitive). CSV and JSON are normalized to a single canonical
+CSV representation, so the same data uploaded in either format produces the same
+`dataset_hash`. XML is canonicalized **as XML** — comments and processing
+instructions are dropped, attributes sorted alphabetically, insignificant
+whitespace removed, and no BOM is emitted — and hashed as XML, so formatting
+differences never change the digest. The canonical XML is then flattened into
+rows for anomaly detection. Malformed XML, and XML with fewer than two numeric
+feature columns, are rejected with `400 Bad Request`.
 
 **Limits:** the request body is capped at `MAX_UPLOAD_SIZE_BYTES` (default
 50 MB) and enforced server-side before the body is read. Oversized uploads are
@@ -428,7 +440,7 @@ Verify a dataset against its on-chain proof.
   "dataset_id": "uuid"         // Option A: look up by ID
   // OR
   "dataset_hash": "abc123...", // Option B: verify by hash directly
-  "file": "..."                // Option C: re-upload CSV or JSON to re-hash and verify
+  "file": "..."                // Option C: re-upload CSV, JSON, or XML to re-hash and verify
 }
 ```
 
@@ -503,7 +515,7 @@ the RPC is reachable and healthy, `{"status": "ok", "soroban_rpc":
 
 | Component | Description |
 |-----------|-------------|
-| `CsvDropzone` | Drag-and-drop area with file validation (.csv only), row count display, preview table. |
+| `CsvDropzone` | Drag-and-drop area with file validation (.csv, .json, .xml), row count display, preview table. |
 | `WalletConnector` | "Connect Freighter" button. Shows connected address, network, and XLM balance. |
 | `SubmissionWorkflow` | Stepper: Upload → Preview → AI Report → Sign → Confirmed. |
 | `AnomalyBadge` | Color-coded badge (green < 5%, yellow 5–20%, red > 20%). |
@@ -704,13 +716,15 @@ backend/tests/
 ├── test_verify.py       # POST /verify, hash comparison
 ├── test_parser.py       # CSV/JSON parsing and canonical conversion
 ├── test_parser_json_types.py # JSON type preservation / hash equivalence
+├── test_xml.py          # XML canonicalization, hashing, and upload pipeline
 ├── test_validation.py   # Geochemical range checks + report integration
 ├── test_uploads.py      # Server-side size limits on both upload endpoints
 ├── test_health.py       # Real Soroban RPC connectivity reporting
 ├── e2e_full_api.py      # End-to-end API integration test
 ├── e2e_submission_flow.py # Full submission flow integration test
 └── fixtures/
-    └── sample.csv       # Deterministic test CSV
+    ├── sample.csv       # Deterministic test CSV
+    └── sample.xml       # Equivalent deterministic test XML
 ```
 
 **Key patterns:**
@@ -719,6 +733,7 @@ backend/tests/
 - Use an in-memory SQLite database (`aiosqlite`) for isolated test DB state.
 - Test hash determinism: the same CSV must always produce the same SHA-256.
 - Test format equivalence: the same data uploaded as CSV and as JSON must hash identically.
+- Test XML canonicalization: attribute order, indentation, comments, processing instructions, and a UTF-8 BOM must not change the XML hash.
 - Test canonicalization edge cases: BOM characters, `\r\n` line endings, trailing whitespace.
 - Test server-side upload limits return `413`, independently of the frontend check.
 - Test the health endpoint against mocked connected and unreachable RPC states.
@@ -738,11 +753,11 @@ backend/tests/
 - Component tests: render components and assert on user-visible output, not merely that a component is exported.
 - Hook tests: exercise `useDatasets` and `useVerify` in isolation with mocked API modules.
 - Routing tests: pin the `routes.tsx` table and render `App` at each path, with Freighter mocked.
-- Utility tests: CSV parsing (including RFC 4180 quoting), Stellar helper functions.
+- Utility tests: CSV/JSON/XML parsing (including RFC 4180 quoting), Stellar helper functions.
 
 **Coverage targets:**
 - All UI states: loading, success, error, empty.
-- CsvDropzone: file validation, size limits, preview rendering, drag-and-drop.
+- CsvDropzone: file validation (.csv, .json, .xml), size limits, preview rendering, drag-and-drop.
 - WalletConnector: connected, disconnected, error states.
 - AnomalyBadge: every score tier and size; AnomalyWarnings: error vs warning styling.
 - DatasetTable, SubmissionStepper and ErrorBoundary: every render state, including recovery.

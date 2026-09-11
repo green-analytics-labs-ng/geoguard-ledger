@@ -17,7 +17,16 @@ import re
 def compute_hash(csv_text: str) -> str:
     """Compute SHA-256 hash over canonicalized CSV content."""
     canonicalized = _canonicalize(csv_text)
-    return hashlib.sha256(canonicalized.encode("utf-8")).hexdigest()
+    return compute_hash_bytes(canonicalized.encode("utf-8"))
+
+
+def compute_hash_bytes(content: bytes) -> str:
+    """Compute SHA-256 over bytes that are already in canonical form.
+
+    Used by formats whose canonical representation is not CSV (currently XML,
+    which is canonicalized by ``app.services.parser.canonicalize_xml``).
+    """
+    return hashlib.sha256(content).hexdigest()
 
 
 def _canonicalize(csv_text: str) -> str:

@@ -100,5 +100,18 @@ soroban contract invoke \
 | `verify_integrity(hash)` | Read-only | Returns the record for a hash, or `None`. |
 | `get_record_count(submitter)` | Read-only | Number of datasets anchored by submitter. |
 | `get_total_anchored()` | Read-only | Global count of anchored datasets. |
-| `extend_ttl(hash, extend_to)` | Public | Extends TTL for a Persistent record. |
+| `extend_ttl(hash, extend_to)` | Public | Renews the TTL of a Persistent record once it drops below the renewal margin. |
 | `transfer_admin(new_admin)` | Admin only | Transfers admin rights. |
+
+## Errors
+
+Fallible functions return a structured contract error — they do not panic — so
+clients can branch on the numeric code instead of parsing strings:
+
+| Code | Variant | Meaning |
+|:---:|---|---|
+| 1 | `NotInitialized` | Contract has no admin; call `initialize` first. |
+| 2 | `AlreadyInitialized` | `initialize` was already called. |
+| 3 | `HashAlreadyAnchored` | The dataset hash already exists on-chain. |
+| 4 | `HashNotFound` | `extend_ttl` was called for an unknown hash. |
+| 5 | `Unauthorized` | Caller lacks the required authorization. |

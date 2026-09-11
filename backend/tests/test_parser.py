@@ -7,7 +7,9 @@ import pytest
 from app.services.parser import (
     SUPPORTED_EXTENSIONS,
     ParseError,
+    describe_supported_formats,
     get_extension,
+    get_file_format,
     is_supported,
     parse_to_csv,
 )
@@ -15,8 +17,12 @@ from app.services.parser import (
 # ── SUPPORTED_EXTENSIONS ──────────────────────────────────────────
 
 
-def test_supported_extensions_contains_csv_and_json():
-    assert frozenset({".csv", ".json"}) == SUPPORTED_EXTENSIONS
+def test_supported_extensions_contains_all_documented_formats():
+    assert frozenset({".csv", ".json", ".xml"}) == SUPPORTED_EXTENSIONS
+
+
+def test_describe_supported_formats_lists_every_extension():
+    assert describe_supported_formats() == ".csv, .json, .xml"
 
 
 def test_supported_extensions_is_frozenset():
@@ -77,12 +83,47 @@ def test_get_extension(filename: str, expected: str):
         ("data.txt", False),
         ("data", False),
         ("", False),
-        ("data.xml", False),
+        ("data.xml", True),
+        ("DATA.XML", True),
         ("data.csv.bak", False),  # .bak is not a supported extension
     ],
 )
 def test_is_supported(filename: str, expected: bool):
     assert is_supported(filename) == expected
+
+
+# ── get_file_format ───────────────────────────────────────────────
+
+
+@pytest.mark.parametrize(
+    "filename, expected",
+    [
+        ("data.csv", "csv"),
+        ("data.json", "json"),
+        ("data.xml", "xml"),
+        ("DATA.CSV", "csv"),
+        ("Data.XmL", "xml"),
+        ("my.report.xml", "xml"),
+        ("path/to/file.json", "json"),
+    ],
+)
+def test_get_file_format(filename: str, expected: str):
+    assert get_file_format(filename) == expected
+
+
+def test_get_file_format_requires_filename():
+    with pytest.raises(ParseError, match="Filename is required"):
+        get_file_format("")
+
+
+def test_get_file_format_rejects_unsupported_extension():
+    with pytest.raises(ParseError, match="Unsupported file format"):
+        get_file_format("data.txt")
+
+
+def test_get_file_format_rejects_missing_extension():
+    with pytest.raises(ParseError, match="no extension"):
+        get_file_format("data")
 
 
 # ── parse_to_csv — None / missing filename ────────────────────────
@@ -110,6 +151,15 @@ def test_parse_to_csv_unsupported_extension():
 def test_parse_to_csv_no_extension():
     with pytest.raises(ParseError, match="no extension"):
         parse_to_csv(b"hello", "data")
+
+
+# ── parse_to_csv — XML is not a CSV conversion ────────────────────
+
+
+def test_parse_to_csv_rejects_xml():
+    """XML is canonicalized as XML, never converted to CSV."""
+    with pytest.raises(ParseError, match="canonicalized rather than converted"):
+        parse_to_csv(b"<root><a>1</a></root>", "data.xml")
 
 
 # ── parse_to_csv — CSV path ───────────────────────────────────────
