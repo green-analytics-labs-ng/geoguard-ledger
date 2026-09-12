@@ -103,10 +103,12 @@ class Reporter:
     def __init__(self) -> None:
         self.checks: list[Check] = []
 
-    def record(self, name: str, ok: bool, detail: str = "") -> None:
+    def record(self, name: str, ok: bool, detail: str = "") -> bool:
+        """Report one check and return whether it passed, so callers can gate."""
         self.checks.append(Check(name, ok, detail))
         suffix = f" — {detail}" if detail else ""
         print(f"  {'PASS' if ok else 'FAIL'}  {name}{suffix}")
+        return ok
 
     @property
     def failed(self) -> list[Check]:
