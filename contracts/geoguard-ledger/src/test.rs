@@ -127,6 +127,23 @@ mod tests {
     }
 
     #[test]
+    fn test_anchor_hash_bumps_the_record_ttl_on_write() {
+        let env = Env::default();
+        let (contract_id, client) = setup_env(&env);
+        let admin = Address::generate(&env);
+        client.initialize(&admin);
+        let submitter = Address::generate(&env);
+        let hash = make_hash(&env, &[7u8; 32]);
+
+        client.anchor_hash(&submitter, &hash, &0, &Symbol::new(&env, "v1"));
+
+        // 3,110,400 ledgers is the ~180-day budget. A record is never written
+        // again, so this bump is the only thing standing between an anchor and
+        // being archived at the network's minimum persistent-entry TTL.
+        assert_eq!(record_ttl(&env, &contract_id, &hash), 3_110_400);
+    }
+
+    #[test]
     fn test_extend_ttl_renews_to_the_requested_target() {
         let env = Env::default();
         let (contract_id, client) = setup_env(&env);
@@ -136,9 +153,10 @@ mod tests {
         let hash = make_hash(&env, &[1u8; 32]);
 
         client.anchor_hash(&submitter, &hash, &0, &Symbol::new(&env, "v1"));
-        client.extend_ttl(&hash, &500_000);
+        // Ask for a target above the write-time bump so the renewal takes effect.
+        client.extend_ttl(&hash, &4_000_000);
 
-        assert_eq!(record_ttl(&env, &contract_id, &hash), 500_000);
+        assert_eq!(record_ttl(&env, &contract_id, &hash), 4_000_000);
     }
 
     #[test]
@@ -151,15 +169,14 @@ mod tests {
         let hash = make_hash(&env, &[1u8; 32]);
 
         client.anchor_hash(&submitter, &hash, &0, &Symbol::new(&env, "v1"));
-        client.extend_ttl(&hash, &1_000_000);
+        let after_write = record_ttl(&env, &contract_id, &hash);
 
-        // Ask for a target barely above the current TTL. The renewal threshold
-        // sits TTL_RENEWAL_MARGIN below the target, so the record is already well
-        // covered and must not be touched. The old `extend_ttl(key, target,
-        // target)` form would have renewed it here.
-        client.extend_ttl(&hash, &1_050_000);
+        // The write-time bump already covers the record well past this target,
+        // so the renewal must leave the entry alone. The old `extend_ttl(key,
+        // target, target)` form would have renewed it here.
+        client.extend_ttl(&hash, &(after_write + 10_000));
 
-        assert_eq!(record_ttl(&env, &contract_id, &hash), 1_000_000);
+        assert_eq!(record_ttl(&env, &contract_id, &hash), after_write);
     }
 
     #[test]

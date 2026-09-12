@@ -122,11 +122,19 @@ soroban contract invoke \
 | Function | Access | Description |
 |----------|--------|-------------|
 | `initialize(admin)` | Deploy-once | Sets the admin address. |
-| `anchor_hash(submitter, hash, score, model)` | Auth required | Stores a new anchor record. |
+| `anchor_hash(submitter, hash, score, model)` | Auth required | Stores a new anchor record, extending its TTL to the full record budget on write. |
 | `verify_integrity(hash)` | Read-only | Returns the record for a hash, or `None`. |
 | `get_record_count(submitter)` | Read-only | Number of datasets anchored by submitter. |
 | `get_total_anchored()` | Read-only | Global count of anchored datasets. |
 | `extend_ttl(hash, extend_to)` | Public | Renews the TTL of a Persistent record once it drops below the renewal margin. |
+
+Persistent entries are written with an explicit TTL bump (~180 days) rather than
+inheriting the network's minimum persistent-entry TTL. Records need this most: a
+record is written once and never modified, so without the bump it would be
+archived within days and `verify_integrity` would stop answering for a dataset
+nobody had tampered with. Renewal afterwards is permissionless and idempotent —
+anyone may call `extend_ttl` / `extend_root_ttl`, and a call against an entry
+that is already well covered is a no-op.
 | `anchor_root(submitter, root, leaf_count)` | Auth required | Stores a Merkle root committing to a batch of datasets. |
 | `get_root(root)` | Read-only | Returns the batch record for a root, or `None`. |
 | `verify_inclusion(root, hash, index, siblings)` | Read-only | Verifies a Merkle inclusion proof against an anchored root. |

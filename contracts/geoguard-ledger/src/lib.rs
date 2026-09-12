@@ -53,6 +53,11 @@ impl GeoGuardLedger {
 
     /// Anchor a dataset hash on-chain. Requires authorization from the submitter.
     ///
+    /// The new record's TTL is pushed out to its full budget on write. A record
+    /// is written once and never modified, so without that bump it would keep
+    /// only the network's minimum persistent-entry TTL and be archived within
+    /// days, taking [`verify_integrity`](Self::verify_integrity) with it.
+    ///
     /// Returns [`Error::NotInitialized`] if the contract has not been initialized
     /// and [`Error::HashAlreadyAnchored`] if the hash already exists.
     pub fn anchor_hash(
@@ -83,6 +88,7 @@ impl GeoGuardLedger {
         };
 
         storage::set_record(&env, &dataset_hash, &record);
+        storage::bump_record_ttl(&env, &dataset_hash);
         storage::increment_submit_count(&env, &submitter);
         storage::increment_total_anchored(&env);
 

@@ -16,14 +16,26 @@ pub enum DataKey {
     Root(BytesN<32>),
 }
 
-// ─── Root TTL Budgets ────────────────────────────────────────────
+// ─── TTL Budgets ─────────────────────────────────────────────────
 // Ledgers are ~5 seconds, so a day is ~17,280 ledgers.
+//
+// Both persistent entry kinds are written with an explicit extension. That
+// matters for records especially: a record is written once and never modified
+// again, and a freshly written persistent entry otherwise inherits only the
+// network's *minimum* persistent-entry TTL. Left alone, an anchor would be
+// archived within days rather than kept for the ~180 days these budgets buy.
 
 /// Extend a root's TTL once fewer than ~30 days of rent remain.
 const ROOT_TTL_THRESHOLD: u32 = 518_400;
 
 /// TTL a root is extended to on write (~180 days).
 const ROOT_TTL_EXTEND_TO: u32 = 3_110_400;
+
+/// Extend a record's TTL once fewer than ~30 days of rent remain.
+const RECORD_TTL_THRESHOLD: u32 = 518_400;
+
+/// TTL a record is extended to on write (~180 days).
+const RECORD_TTL_EXTEND_TO: u32 = 3_110_400;
 
 // ─── Admin ───────────────────────────────────────────────────────
 
@@ -57,6 +69,20 @@ pub fn set_record(env: &Env, hash: &BytesN<32>, record: &AnchorRecord) {
     env.storage()
         .persistent()
         .set(&DataKey::Record(hash.clone()), record);
+}
+
+/// Push a freshly written record's TTL out to the full budget.
+///
+/// A record is written once and never touched again, so it cannot rely on a
+/// later write to refresh its TTL the way other entries might. Without this
+/// bump it would carry only the network's minimum persistent-entry TTL and be
+/// archived long before the renewal job's ~180-day horizon, which would break
+/// `verify_integrity` for a dataset nobody had tampered with.
+pub fn bump_record_ttl(env: &Env, hash: &BytesN<32>) {
+    let key = DataKey::Record(hash.clone());
+    env.storage()
+        .persistent()
+        .extend_ttl(&key, RECORD_TTL_THRESHOLD, RECORD_TTL_EXTEND_TO);
 }
 
 // ─── Submit Counters (Persistent) ────────────────────────────────
