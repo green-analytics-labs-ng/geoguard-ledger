@@ -52,7 +52,7 @@ class Dataset(Base):
     model_version: Mapped[str | None] = mapped_column(
         String(50),
         nullable=True,
-        comment="AI model version tag (e.g., isoforest-v1)",
+        comment="AI model version tag (e.g., isoforest_v1)",
     )
     anomaly_summary: Mapped[str | None] = mapped_column(
         Text,
