@@ -265,6 +265,7 @@ Soroban provides three storage types with distinct durability and cost profiles:
   - `submitter` must be authenticated (requires `require_auth` for the submitter address).
 - **Effect:**
   - Stores a new `AnchorRecord` keyed by `dataset_hash`.
+  - Extends the new entry's TTL to the full record budget (~180 days). A record is written once and never modified, so without this it would carry only the network's *minimum* persistent-entry TTL and be archived within days, making `verify_integrity` stop answering for a dataset nobody had tampered with.
   - Increments `SubmitCount(submitter)`.
   - Increments `TotalAnchored`.
   - Emits an `Anchored` event.
@@ -285,8 +286,9 @@ Soroban provides three storage types with distinct durability and cost profiles:
 
 #### `extend_ttl(dataset_hash: BytesN<32>, extend_to: u32)`
 - **Access:** Public (permissionless — anyone can pay to keep records alive).
-- **Effect:** Extends the Time-To-Live (TTL) of the `Record(dataset_hash)` Persistent ledger entry to `extend_to` (expressed as a ledger sequence number).
-- **Rationale:** Stellar's state rent model requires periodic TTL renewal. This function allows the backend (or any third party) to proactively extend the lifespan of anchored records, keeping queries fast and free of archival-restoration overhead.
+- **Effect:** Extends the Time-To-Live (TTL) of the `Record(dataset_hash)` Persistent ledger entry to `extend_to` (expressed as a ledger sequence number). The entry is renewed only once its remaining TTL drops below `extend_to - TTL_RENEWAL_MARGIN`, so a call reliably keeps a record far from expiry instead of no-opping on one that already sits near the target.
+- **Rationale:** Stellar's state rent model requires periodic TTL renewal, and a record's write-time bump is only a ~180-day reprieve. This function allows the backend (or any third party) to proactively extend the lifespan of anchored records, keeping queries fast and free of archival-restoration overhead.
+- **Caller:** `backend/app/jobs/renew_ttl.py`, signed by the operational "rent payer" account.
 
 #### `anchor_root(submitter: Address, merkle_root: BytesN<32>, leaf_count: u32) -> RootRecord`
 - **Access:** Public (submitters pay gas).
@@ -597,13 +599,15 @@ the RPC is reachable and healthy, `{"status": "ok", "soroban_rpc":
 `SOROBAN_RPC_HEALTH_TIMEOUT_SECONDS`.
 
 #### `GET /api/v1/maintenance/ttl-status`
-Reports how much life the anchored Merkle roots have left. An anchored root is a
-Persistent ledger entry, so if renewal stops working the entries are eventually
-archived and verification silently stops answering — this endpoint is how that
-shows up as a metric instead. Returns the anchored root count, how many are due
-for renewal, how many are already past their recorded expiry, how many are
-failing to renew, the next deadline, and the configured window and lifetime.
-Kept out of `/health` so liveness probes do not pay for a database aggregate.
+Reports how much life the anchored entries have left, nested under `roots` and
+`records`. Anchors are Persistent ledger entries, so if renewal stops working
+they are eventually archived and verification silently stops answering — this
+endpoint is how that shows up as a metric instead. Each block carries the
+anchored count, how many are due for renewal, how many are already past their
+recorded expiry, how many are failing to renew, and the next deadline and last
+renewal. `records` covers standalone anchors only; a batched dataset is covered
+by its batch root, so it is counted there instead. Kept out of `/health` so
+liveness probes do not pay for a database aggregate.
 
 ### 5.3 Authentication & Authorization
 
@@ -741,12 +745,12 @@ geoguard-ledger/
 │   │   │   ├── hasher.py       # SHA-256 hashing + canonicalization
 │   │   │   ├── anomaly.py      # AI anomaly detection service
 │   │   │   ├── merkle.py       # Merkle tree construction + inclusion proofs
-│   │   │   ├── ttl_renewal.py  # Root expiry math + renewal orchestration
+│   │   │   ├── ttl_renewal.py  # Entry expiry math + renewal orchestration
 │   │   │   ├── soroban.py      # Soroban RPC client, tx building
 │   │   │   └── storage.py      # IPFS integration (Phase 3)
 │   │   ├── jobs/
 │   │   │   ├── __init__.py
-│   │   │   └── renew_root_ttl.py  # Scheduled root TTL renewal job
+│   │   │   └── renew_ttl.py    # Scheduled TTL renewal job (roots + records)
 │   │   ├── db/
 │   │   │   ├── __init__.py
 │   │   │   ├── session.py      # Async SQLAlchemy session
@@ -760,8 +764,8 @@ geoguard-ledger/
 │   │   ├── test_datasets.py
 │   │   ├── test_batches.py
 │   │   ├── test_merkle.py
-│   │   ├── test_ttl_renewal.py
-│   │   ├── test_maintenance.py
+│   │   ├── test_ttl_renewal.py  # Expiry math, selection, renewal, job
+│   │   ├── test_maintenance.py # TTL status endpoint + anchoring seams
 │   │   ├── test_verify.py
 │   │   └── fixtures/
 │   │       └── sample.csv
@@ -1006,15 +1010,16 @@ A `/metrics` endpoint (Prometheus-compatible, planned) exposes:
 | `geoguard_soroban_rpc_latency_seconds` | Histogram | Soroban RPC response latency. |
 | `geoguard_ttl_records_expiring_soon` | Gauge | Number of anchor records with TTL < 30 days remaining. |
 
-**Available today:** the root-expiry gauges are exposed in JSON form at
-`GET /api/v1/maintenance/ttl-status` — `roots_due_for_renewal`,
-`roots_past_recorded_expiry`, `roots_with_renewal_error` and `next_expiry_at`.
-Prometheus exposition of the full table above is still planned.
+**Available today:** the expiry gauges are exposed in JSON form at
+`GET /api/v1/maintenance/ttl-status`, per entry kind — `roots` and `records`
+blocks each carrying `due_for_renewal`, `past_recorded_expiry`,
+`with_renewal_error`, `next_expiry_at` and `last_renewed_at`. Prometheus
+exposition of the full table above is still planned.
 
-**Alert on `roots_past_recorded_expiry` above zero and on
-`roots_with_renewal_error` growing:** either means the renewal job has stopped
-keeping up, and the failure is otherwise invisible until someone tries to verify
-a dataset that was anchored in an affected batch.
+**Alert on `past_recorded_expiry` above zero, or on `with_renewal_error`
+growing, under either kind:** either means the renewal job has stopped keeping
+up, and the failure is otherwise invisible until someone tries to verify a
+dataset and is told it is not on-chain.
 
 ### 10.3 Alerting
 
@@ -1159,17 +1164,17 @@ chore(ci): add Soroban contract test workflow
 | Batch persistence | `batches` table plus `batch_id`, `merkle_root`, `leaf_index`, `merkle_proof` on `datasets`. | ✅ |
 | Tests | Contract (Merkle), Merkle-service, batch-API, and frontend suites. | ✅ |
 | Frontend batching | `BatchAnchorFlow` builds and anchors a batch from the upload page; `MerkleProof` displays the root and inclusion proof on the upload and verify pages; `/verify` accepts a linked `dataset_hash`; the dataset list and detail pages surface batch membership via `BatchBadge` and the stored proof path. | ✅ |
-| Root TTL renewal | `app/services/ttl_renewal.py` selects anchored roots entering their renewal window and renews them through the operational account; `app/jobs/renew_root_ttl.py` runs one pass on a schedule; `GET /api/v1/maintenance/ttl-status` reports the backlog. | ✅ |
+| TTL renewal | `app/services/ttl_renewal.py` selects anchored entries entering their renewal window and renews them through the operational account — batch roots via `extend_root_ttl`, standalone records via `extend_ttl`. `app/jobs/renew_ttl.py` runs one pass on a schedule; `GET /api/v1/maintenance/ttl-status` reports the backlog per kind. | ✅ |
+| Record TTL on write | `anchor_hash` extends a new record to its full budget, so a standalone anchor is not archived at the network's minimum persistent-entry TTL. | ✅ |
 
 **Remaining Work (Phase 5):**
-- Renewal deadlines come from the contract's TTL budgets *as recorded in the database*, not from the ledger. Reading each entry's `liveUntilLedgerSeq` would remove that assumption entirely.
-- Individually anchored datasets still hold their own Persistent entries (`Record(hash)`), which this job does not renew.
+- Renewal deadlines come from the contract's TTL budgets *as recorded in the database*, not from the ledger. Reading each entry's `liveUntilLedgerSeq` would remove that assumption entirely — and would also let the job confirm the ~180-day write-time bump against what the network actually grants.
 - Batch listing and management UI — the API is ready and dataset pages now show membership, but there is no batch index or management page.
 
 ### Post-Launch
 
 - **IPFS/Arweave integration** for decentralized raw data storage.
-- **TTL Renewal Automation — delivered:** `app/jobs/renew_root_ttl.py` proactively calls `extend_root_ttl()` on roots approaching expiry, acting as an automated rent payer so researchers never lose query access to their proofs. It is a scheduled command rather than an in-process task, so multiple API replicas do not each run it; the call is permissionless and idempotent, so overlapping runs are harmless. Batch roots are what make this tractable: one renewal keeps an entire batch alive.
+- **TTL Renewal Automation — delivered:** `app/jobs/renew_ttl.py` proactively renews batch roots (`extend_root_ttl`) and standalone records (`extend_ttl`) as they approach expiry, acting as an automated rent payer so researchers never lose query access to their proofs. It is a scheduled command rather than an in-process task, so multiple API replicas do not each run it; the calls are permissionless and idempotent, so overlapping runs never extend an entry twice. Batch roots are what make this tractable at scale: one renewal keeps an entire batch alive.
 - **Batch-aware frontend:** Surface batch creation and Merkle proof display in the upload and verification UIs.
 - **Researcher reputation system** (on-chain scores based on anomaly-free submissions).
 - **Multi-model support** (pluggable AI backends).

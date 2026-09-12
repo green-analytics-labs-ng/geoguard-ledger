@@ -15,6 +15,7 @@ from app.services.anomaly import run_anomaly_detection
 from app.services.ingest import process_upload
 from app.services.parser import describe_supported_formats, is_supported
 from app.services.soroban import build_anchor_transaction, submit_transaction
+from app.services.ttl_renewal import initial_ttl_expiry
 
 router = APIRouter(prefix="/datasets")
 
@@ -166,6 +167,11 @@ async def submit_dataset(
         dataset.ledger_number = tx_result["ledger"]
         dataset.explorer_url = f"https://stellar.expert/explorer/testnet/tx/{tx_result['tx_hash']}"
         dataset.anchored_at = datetime.now(UTC)
+        # anchor_hash pushes the new record's TTL out to its full budget on
+        # write, so record the deadline the renewal job has to beat. Without it
+        # this dataset would never be selected and its record would be archived
+        # at the network's minimum persistent-entry TTL.
+        dataset.ttl_expires_at = initial_ttl_expiry(dataset.anchored_at)
     except Exception as exc:
         dataset.status = "failed"
         await db.commit()

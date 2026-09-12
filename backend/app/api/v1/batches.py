@@ -20,7 +20,7 @@ from app.models.batch import Batch
 from app.models.dataset import Dataset
 from app.services import merkle
 from app.services.soroban import build_anchor_root_transaction, submit_transaction
-from app.services.ttl_renewal import initial_root_expiry
+from app.services.ttl_renewal import initial_ttl_expiry
 
 router = APIRouter(prefix="/batches")
 
@@ -240,7 +240,7 @@ async def submit_batch(
     batch.anchored_at = anchored_at
     # The contract pushes a new root's TTL out to its full budget when it is
     # written, so record the deadline the renewal job has to beat.
-    batch.root_ttl_expires_at = initial_root_expiry(anchored_at)
+    batch.root_ttl_expires_at = initial_ttl_expiry(anchored_at)
 
     # Every dataset covered by the root is now provably anchored.
     members = await db.execute(select(Dataset).where(Dataset.batch_id == batch.batch_id))

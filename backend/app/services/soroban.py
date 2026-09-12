@@ -261,18 +261,26 @@ def _renewal_signer() -> Keypair:
     return Keypair.from_secret(settings.ttl_renewal_signer_secret)
 
 
-async def renew_root_ttl_on_chain(
-    merkle_root: str,
+async def _renew_ttl_on_chain(
+    function_name: str,
+    entry_key: str,
     extend_to_ledgers: int,
 ) -> dict[str, Any]:
-    """Extend an anchored Merkle root's TTL, signed by the operational account.
+    """Extend a persistent entry's TTL, signed by the operational account.
 
-    ``extend_root_ttl`` is permissionless and can only push an entry's expiry
-    out, so this account can never alter or forge a record — it only pays rent.
-    A call against a root that is still well covered is a no-op on-chain.
+    Both renewal entry points (`extend_root_ttl` for a batch root, `extend_ttl`
+    for an individual record) share this shape: one BytesN<32> key and a target
+    ledger count, no argument identifying who is asking.
+
+    Renewal is a state-changing call, so unlike anchoring it cannot be handed to
+    the researcher to sign — the backend signs it with the operational account.
+    Both functions are permissionless and can only push an expiry out, so that
+    account can never alter or forge a record: it only pays rent. A call against
+    an entry that is still well covered is a no-op on-chain.
 
     Args:
-        merkle_root: Hex Merkle root whose persistent entry should be renewed.
+        function_name: Contract function to invoke.
+        entry_key: Hex key of the entry (Merkle root, or dataset hash).
         extend_to_ledgers: Ledger count to extend that entry to.
 
     Returns:
@@ -285,7 +293,7 @@ async def renew_root_ttl_on_chain(
     signer = _renewal_signer()
 
     invoke_args = [
-        scval.to_bytes(_hex_to_bytes(merkle_root)),  # BytesN<32>
+        scval.to_bytes(_hex_to_bytes(entry_key)),  # BytesN<32>
         scval.to_uint32(extend_to_ledgers),  # u32
     ]
 
@@ -293,9 +301,9 @@ async def renew_root_ttl_on_chain(
     # exist and be funded on-chain.
     unsigned_xdr = await _build_and_prepare_unsigned(
         signer.public_key,
-        "extend_root_ttl",
+        function_name,
         invoke_args,
-        log_context=f"root={merkle_root[:12]} extend_to={extend_to_ledgers}",
+        log_context=f"{function_name} key={entry_key[:12]} extend_to={extend_to_ledgers}",
     )
 
     # Sign only after prepare_transaction, which bakes in the resource footprint
@@ -304,6 +312,41 @@ async def renew_root_ttl_on_chain(
     envelope.sign(signer)
 
     return await submit_transaction(envelope.to_xdr())
+
+
+async def renew_root_ttl_on_chain(
+    merkle_root: str,
+    extend_to_ledgers: int,
+) -> dict[str, Any]:
+    """Extend an anchored Merkle root's TTL, covering every dataset in its batch.
+
+    Args:
+        merkle_root: Hex Merkle root whose persistent entry should be renewed.
+        extend_to_ledgers: Ledger count to extend that entry to.
+
+    Returns:
+        Dict with ``tx_hash`` (str) and ``ledger`` (int).
+    """
+    return await _renew_ttl_on_chain("extend_root_ttl", merkle_root, extend_to_ledgers)
+
+
+async def renew_record_ttl_on_chain(
+    dataset_hash: str,
+    extend_to_ledgers: int,
+) -> dict[str, Any]:
+    """Extend a dataset's own anchor record, for datasets anchored individually.
+
+    A batched dataset has no `Record(hash)` entry of its own, so this is only
+    used for the standalone anchoring path.
+
+    Args:
+        dataset_hash: Hex SHA-256 hash whose record should be renewed.
+        extend_to_ledgers: Ledger count to extend that entry to.
+
+    Returns:
+        Dict with ``tx_hash`` (str) and ``ledger`` (int).
+    """
+    return await _renew_ttl_on_chain("extend_ttl", dataset_hash, extend_to_ledgers)
 
 
 # ── Transaction Submission ────────────────────────────────────────

@@ -1,17 +1,21 @@
-"""Renew Merkle roots whose TTL is about to run out.
+"""Renew anchored entries whose TTL is about to run out.
 
-Anchored roots are Persistent ledger entries that Soroban archives once their
-TTL lapses, which would make every dataset in the batch unverifiable. This job
-renews the ones approaching expiry, acting as the batch's rent payer.
+On-chain anchors are Persistent ledger entries that Soroban archives once their
+TTL lapses. Archiving makes verification stop answering for whatever the entry
+covered, so this job renews entries approaching expiry, acting as their rent
+payer. It covers both kinds:
+
+- a batch's **root**, which keeps every dataset in that batch verifiable;
+- a dataset's own **record**, when it was anchored individually.
 
 Run it on a schedule — cron, a systemd timer, or a Kubernetes CronJob:
 
-    python -m app.jobs.renew_root_ttl --dry-run   # see what would be renewed
-    python -m app.jobs.renew_root_ttl             # renew for real
+    python -m app.jobs.renew_ttl --dry-run   # see what would be renewed
+    python -m app.jobs.renew_ttl             # renew for real
 
-The job is safe to run repeatedly: a successful renewal moves the root's
+The job is safe to run repeatedly: a successful renewal moves the entry's
 recorded deadline out of the window, so the next run skips it. Two overlapping
-runs can both attempt the same root; the contract treats the second call as a
+runs can both attempt the same entry; the contract treats the second call as a
 no-op, so nothing is extended twice, though that attempt still pays a fee. Keep
 the schedule tighter than the window (30 days by default) and overlap is
 effectively impossible in practice.
@@ -19,7 +23,7 @@ effectively impossible in practice.
 Exit codes, so a scheduler's alerting can act on them:
 
     0  ran cleanly (including "nothing was due")
-    1  at least one renewal failed; the failing root is recorded on the batch
+    1  at least one renewal failed; the failing entry is recorded on its row
     2  the job is disabled or has no signing account configured
 """
 
@@ -32,11 +36,7 @@ import sys
 
 from app.config import settings
 from app.db.session import AsyncSessionLocal
-from app.services.ttl_renewal import (
-    renew_due_roots,
-    renewal_enabled,
-    root_ttl_horizon,
-)
+from app.services.ttl_renewal import renew_expiring_entries, renewal_enabled, ttl_horizon
 
 logger = logging.getLogger(__name__)
 
@@ -54,29 +54,34 @@ async def run(*, dry_run: bool = False, limit: int | None = None) -> int:
             else "TTL_RENEWAL_SIGNER_SECRET is not set"
         )
         logger.error(
-            "Root TTL renewal is not configured (%s). Every anchored root will "
+            "TTL renewal is not configured (%s). Anchored roots and records will "
             "eventually be archived and stop verifying.",
             reason,
         )
         return EXIT_NOT_CONFIGURED
 
     async with AsyncSessionLocal() as db:
-        summary = await renew_due_roots(db, limit=limit, dry_run=dry_run)
+        run_result = await renew_expiring_entries(db, limit=limit, dry_run=dry_run)
 
     logger.info(
-        "Root TTL renewal pass complete: considered=%d renewed=%d failed=%d dry_run=%s",
-        summary.considered,
-        summary.renewed,
-        summary.failed,
-        summary.dry_run,
+        "TTL renewal pass complete: considered=%d renewed=%d failed=%d dry_run=%s",
+        run_result.considered,
+        run_result.renewed,
+        run_result.failed,
+        dry_run,
     )
 
     if dry_run:
-        for outcome in summary.outcomes:
-            expiry_note = "would renew"
-            logger.info("%s batch=%s root=%s", expiry_note, outcome.batch_id, outcome.merkle_root)
+        for summary in (run_result.roots, run_result.records):
+            for outcome in summary.outcomes:
+                logger.info(
+                    "would renew kind=%s id=%s key=%s",
+                    summary.kind,
+                    outcome.entry_id,
+                    outcome.entry_key,
+                )
 
-    return EXIT_RENEWAL_FAILED if summary.failed else EXIT_OK
+    return EXIT_RENEWAL_FAILED if run_result.failed else EXIT_OK
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -85,16 +90,16 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="list the roots that would be renewed without spending any fees",
+        help="list the entries that would be renewed without spending any fees",
     )
     parser.add_argument(
         "--limit",
         type=int,
         default=None,
         help=(
-            "renew at most this many roots in this run "
-            f"(default: TTL_RENEWAL_MAX_ROOTS_PER_RUN="
-            f"{settings.ttl_renewal_max_roots_per_run})"
+            "renew at most this many entries across both kinds in this run "
+            f"(default: TTL_RENEWAL_MAX_ENTRIES_PER_RUN="
+            f"{settings.ttl_renewal_max_entries_per_run})"
         ),
     )
     args = parser.parse_args(argv)
@@ -105,9 +110,9 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     logger.info(
-        "Root TTL renewal starting: window=%dd lifetime=%.1fd contract=%s",
+        "TTL renewal starting: window=%dd lifetime=%.1fd contract=%s",
         settings.ttl_renewal_window_days,
-        root_ttl_horizon().total_seconds() / 86_400,
+        ttl_horizon().total_seconds() / 86_400,
         settings.contract_id or "(unset)",
     )
 

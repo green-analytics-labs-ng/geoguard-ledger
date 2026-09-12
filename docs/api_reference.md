@@ -131,32 +131,47 @@ re-checks the proof in the backend; `verified_on_chain` is the contract's own
 
 ### `GET /api/v1/maintenance/ttl-status`
 
-Reports how much life the anchored Merkle roots have left. Roots are Persistent
-ledger entries, so if renewal stops working they are eventually archived and
-verification silently stops answering for every dataset in those batches — this
-endpoint is how that shows up as a number instead.
+Reports how much life the anchored entries have left, nested under `roots` and
+`records`. Anchors are Persistent ledger entries, so if renewal stops working
+they are eventually archived and verification silently stops answering — for
+every dataset in a batch when a root goes, for one dataset when a standalone
+record does. This endpoint is how that shows up as a number instead.
 
 ```json
 {
   "enabled": true,
   "signer_configured": true,
   "renewal_window_days": 30,
-  "root_lifetime_days": 180.0,
-  "anchored_roots": 12,
-  "roots_without_recorded_expiry": 0,
-  "roots_due_for_renewal": 2,
-  "roots_past_recorded_expiry": 0,
-  "roots_with_renewal_error": 0,
-  "next_expiry_at": "2026-10-02T11:15:00+00:00",
-  "last_renewed_at": "2026-09-01T03:00:12+00:00"
+  "entry_lifetime_days": 180.0,
+  "roots": {
+    "anchored": 12,
+    "without_recorded_expiry": 0,
+    "due_for_renewal": 2,
+    "past_recorded_expiry": 0,
+    "with_renewal_error": 0,
+    "next_expiry_at": "2026-10-02T11:15:00+00:00",
+    "last_renewed_at": "2026-09-01T03:00:12+00:00"
+  },
+  "records": {
+    "anchored": 7,
+    "without_recorded_expiry": 0,
+    "due_for_renewal": 1,
+    "past_recorded_expiry": 0,
+    "with_renewal_error": 0,
+    "next_expiry_at": "2026-09-20T08:02:41+00:00",
+    "last_renewed_at": null
+  }
 }
 ```
 
-Alert on `roots_past_recorded_expiry` above zero, or on
-`roots_with_renewal_error` growing: either means the renewal job has stopped
-keeping up.
+The `records` block counts standalone anchors only. A dataset anchored in a
+batch is covered by its batch root and has no record of its own, so it is
+counted under `roots` instead.
 
-Note that expiry is the deadline **recorded** when a root was anchored or
+Alert on `past_recorded_expiry` above zero, or on `with_renewal_error` growing,
+under either kind: either means the renewal job has stopped keeping up.
+
+Note that expiry is the deadline **recorded** when an entry was anchored or
 renewed, derived from the contract's TTL budgets — it is not read back from the
 ledger. Treat it as a drift detector: if the contract's budgets change, these
 deadlines go stale and say so here rather than failing silently.
@@ -165,8 +180,8 @@ Renewal itself is a scheduled command, not an endpoint:
 
 ```bash
 cd backend
-python -m app.jobs.renew_root_ttl --dry-run   # list what would be renewed
-python -m app.jobs.renew_root_ttl             # renew for real
+python -m app.jobs.renew_ttl --dry-run   # list what would be renewed
+python -m app.jobs.renew_ttl             # renew for real
 ```
 
 It exits `0` on a clean run, `1` when any renewal failed (the failure is also

@@ -17,12 +17,13 @@ router = APIRouter(prefix="/maintenance")
 
 @router.get("/ttl-status")
 async def ttl_status(db: AsyncSession = Depends(get_db)) -> dict[str, Any]:  # noqa: B008
-    """Report how much life the anchored Merkle roots have left.
+    """Report how much life the anchored entries have left, by kind.
 
-    A root that is archived makes every dataset in its batch unverifiable, so
-    the counts here — roots due for renewal, already past their recorded expiry,
-    and failing to renew — are the signal that the ledger's central promise is
-    still being kept. ``roots_past_recorded_expiry`` above zero means the
-    renewal job is not running or is unable to keep up.
+    An archived entry stops answering verification, taking its datasets with it —
+    a batch root covers every dataset in the batch, a record covers one dataset
+    anchored on its own. The counts here (due for renewal, already past their
+    recorded expiry, failing to renew) are the signal that the ledger's central
+    promise is still being kept. A ``past_recorded_expiry`` above zero under
+    either kind means the renewal job is not running or cannot keep up.
     """
     return await get_ttl_status(db)
