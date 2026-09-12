@@ -49,7 +49,7 @@ Environmental policy, public health interventions, and climate adaptation strate
 ### ⛓️ Blockchain Anchoring (Soroban / Stellar)
 
 - **Immutable On-Chain Records** — Dataset hashes, anomaly scores, model versions, timestamps, and submitter identities are permanently stored on the Stellar blockchain via Soroban smart contracts written in Rust.
-- **Gas-Efficient Design** — Stellar's state rent model and low transaction fees make per-dataset anchoring economically viable at scale. Future Merkle tree batching will collapse O(n) rent costs into O(1).
+- **Merkle Batch Anchoring** — Datasets can be committed under a single Merkle root, collapsing O(n) on-chain entries (and their rent obligations) into O(1). Each dataset keeps an inclusion proof that any third party can verify against the anchored root with the contract's `verify_inclusion()`, and renewing one root keeps an entire batch alive.
 - **Permissionless Verification** — Any third party — journal editor, regulator, fellow researcher — can verify a dataset's authenticity by calling the contract's `verify_integrity()` read-only function without gas costs or special permissions.
 
 ### 🔐 Privacy-Preserving Architecture
@@ -265,18 +265,19 @@ geoguard-ledger/
 │       ├── src/
 │       │   ├── lib.rs          # Contract entry point
 │       │   ├── storage.rs      # Persistent storage logic
-│       │   ├── types.rs        # AnchorRecord, events
+│       │   ├── merkle.rs       # Deterministic Merkle leaf/node hashing
+│       │   ├── types.rs        # AnchorRecord, RootRecord, events
 │       │   ├── errors.rs       # Contract-specific error variants
-│       │   └── test.rs         # 8 comprehensive unit tests
+│       │   └── test.rs         # Comprehensive unit tests
 │       └── Makefile            # Build, test, deploy targets
 │
 ├── backend/                    # FastAPI backend (Python)
 │   └── app/
 │       ├── main.py             # App factory, CORS, lifespan
 │       ├── config.py           # Environment-based configuration
-│       ├── api/v1/             # REST endpoints (datasets, verify, health)
+│       ├── api/v1/             # REST endpoints (datasets, batches, verify, health)
 │       ├── models/             # SQLAlchemy models + Pydantic schemas
-│       ├── services/           # Hasher, AI anomaly detector, Soroban client
+│       ├── services/           # Hasher, Merkle proofs, AI anomaly detector, Soroban client
 │       ├── db/                 # Async SQLAlchemy session management
 │       └── core/               # Security, custom exceptions
 │

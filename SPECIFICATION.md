@@ -216,6 +216,16 @@ pub struct AnchorRecord {
     timestamp: u64,             // Unix epoch seconds
     submitter: Address,         // Stellar public key of the submitting researcher
 }
+
+/// Record stored on-chain for a Merkle root committing to a batch of datasets.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RootRecord {
+    merkle_root: BytesN<32>,    // SHA-256 Merkle root over the batch leaves
+    leaf_count: u32,            // Number of dataset leaves committed to
+    submitter: Address,         // Stellar public key of the submitting researcher
+    timestamp: u64,             // Unix epoch seconds
+}
 ```
 
 ### 4.3 Contract Storage Layout
@@ -236,6 +246,9 @@ Soroban provides three storage types with distinct durability and cost profiles:
 | `Record(dataset_hash)` | `AnchorRecord` | **Persistent** | Per-dataset anchoring record. Archived on expiry but recoverable. |
 | `SubmitCount(submitter)` | `u32` | Persistent | How many datasets a researcher has anchored. |
 | `TotalAnchored` | `u32` | Instance | Global counter of all anchored datasets. |
+| `Root(merkle_root)` | `RootRecord` | **Persistent** | Per-batch Merkle root record. One entry covers every dataset in the batch. |
+| `BatchCount(submitter)` | `u32` | Persistent | How many batches a researcher has anchored. |
+| `TotalBatches` | `u32` | Instance | Global counter of all anchored Merkle roots. |
 
 **Critical Design Choice:** `Record` entries use **Persistent** storage so that even if rent lapses and the ledger entry is archived, the proof is not permanently deleted — it can be restored. Temporary storage is explicitly avoided for integrity proofs because expired Temporary entries are irretrievably destroyed.
 
@@ -275,6 +288,49 @@ Soroban provides three storage types with distinct durability and cost profiles:
 - **Effect:** Extends the Time-To-Live (TTL) of the `Record(dataset_hash)` Persistent ledger entry to `extend_to` (expressed as a ledger sequence number).
 - **Rationale:** Stellar's state rent model requires periodic TTL renewal. This function allows the backend (or any third party) to proactively extend the lifespan of anchored records, keeping queries fast and free of archival-restoration overhead.
 
+#### `anchor_root(submitter: Address, merkle_root: BytesN<32>, leaf_count: u32) -> RootRecord`
+- **Access:** Public (submitters pay gas).
+- **Preconditions:**
+  - `leaf_count` must be greater than 0.
+  - `merkle_root` must not already exist (no overwrites).
+  - `submitter` must be authenticated (requires `require_auth` for the submitter address).
+- **Effect:**
+  - Stores a new `RootRecord` keyed by `merkle_root`.
+  - Extends the new entry's TTL to the full root budget (~180 days), so a batch only ever needs one renewal.
+  - Increments `BatchCount(submitter)`.
+  - Increments `TotalBatches`.
+  - Emits a `RootAnchored` event.
+- **Returns:** The newly created `RootRecord`.
+- **Rationale:** One root costs one Persistent entry (and one rent obligation) no matter how many datasets it commits to. This is what decouples anchoring cost from submission volume.
+
+#### `get_root(merkle_root: BytesN<32>) -> Option<RootRecord>`
+- **Access:** Public read-only.
+- **Returns:** The `RootRecord` if the root is anchored, otherwise `None`.
+
+#### `verify_inclusion(merkle_root: BytesN<32>, dataset_hash: BytesN<32>, index: u32, siblings: Vec<BytesN<32>>) -> bool`
+- **Access:** Public read-only (no gas).
+- **Effect:** Recomputes the root from the dataset hash and the bottom-up `siblings` path, starting at leaf position `index` and halving it once per level, then compares against the anchored `merkle_root`.
+- **Returns:** `true` only when the root is anchored **and** the proof reconstructs it; `false` when the root is unknown or the proof does not match.
+- **Merkle scheme (normative):**
+  - Leaf: `SHA256(0x00 || dataset_hash)`
+  - Internal node: `SHA256(0x01 || left || right)`
+  - A level with an odd number of nodes pairs its final node with itself.
+  - The `0x00`/`0x01` prefixes domain-separate leaves from interior nodes.
+  - The off-chain implementation in `backend/app/services/merkle.py` reproduces these rules byte for byte.
+
+#### `get_batch_count(submitter: Address) -> u32`
+- **Access:** Public read-only.
+- **Returns:** Number of Merkle roots anchored by a given researcher.
+
+#### `get_total_batches() -> u32`
+- **Access:** Public read-only.
+- **Returns:** Global count of all anchored Merkle roots.
+
+#### `extend_root_ttl(merkle_root: BytesN<32>, extend_to: u32)`
+- **Access:** Public (permissionless).
+- **Effect:** Extends the TTL of the `Root(merkle_root)` Persistent entry to `extend_to`.
+- **Rationale:** Batch roots are the long-lived entries that need renewal, so renewing one root keeps every dataset in the batch queryable.
+
 #### `transfer_admin(new_admin: Address)`
 - **Access:** Admin only (`require_auth` for current admin).
 - **Effect:** Updates the `Admin` address.
@@ -286,6 +342,14 @@ Soroban provides three storage types with distinct durability and cost profiles:
 event Anchored {
     dataset_hash: BytesN<32>,
     submitter: Address,
+    timestamp: u64,
+}
+
+/// Emitted when a batch Merkle root is anchored.
+event RootAnchored {
+    merkle_root: BytesN<32>,
+    submitter: Address,
+    leaf_count: u32,
     timestamp: u64,
 }
 ```
@@ -319,13 +383,15 @@ pub enum Error {
 
 Frontend and backend clients should parse these error codes from the Soroban transaction result to provide meaningful user feedback (e.g., "This dataset has already been anchored" versus "Network error — please try again").
 
+The batching entry points extend this with two additional call traps, matching the existing `anchor_hash` style of failing loudly rather than silently overwriting state: `anchor_root` rejects an empty batch (`Batch must contain at least one leaf`) and a root that is already anchored (`Merkle root already anchored`), and `extend_root_ttl` rejects an unknown root (`Merkle root not found`).
+
 ### 4.7 Gas & Cost Model
 
 - Each `anchor_hash` call stores ~100 bytes of data (32 + 4 + ~12 + 8 + 32).
 - **State Rent & TTL:** Stellar Soroban charges ongoing rent for ledger entries. Each Persistent entry has a Time-To-Live (TTL) measured in ledgers (~5 seconds per ledger). When TTL expires, the entry is archived (recoverable for Persistent, permanently deleted for Temporary). Someone must periodically call `extend_ttl()` to keep records alive and queryable without archival-restoration overhead.
   - **Important:** TTL expiry is **not** a security mechanism — anyone can permissionlessly renew any entry. Validity logic (timestamps) lives inside the contract code, not in the TTL.
 - Estimated cost per anchoring (Testnet, subject to change): ~0.5–1 XLM, plus ongoing rent of ~0.01–0.05 XLM/year per record.
-- **Future:** Consider a "batching" function (`anchor_root`) that anchors a Merkle root instead of individual hashes. This collapses O(n) rent costs into O(1) by storing thousands of dataset proofs under a single Persistent key. Individual dataset verification is then performed off-chain using Merkle inclusion proofs against the on-chain root.
+- **Batch anchoring (`anchor_root`):** Anchors a Merkle root instead of individual hashes, collapsing O(n) rent costs into O(1) by committing thousands of datasets under a single Persistent key. Individual datasets are verified with a Merkle inclusion proof (`verify_inclusion`), which the backend generates off-chain in `app/services/merkle.py` and stores alongside each dataset. This is the primary lever for scaling: anchoring cost and rent obligations no longer grow with the number of submissions, and a whole batch is kept alive by renewing one root.
 
 ---
 
@@ -458,9 +524,69 @@ Verify a dataset against its on-chain proof.
   "local_record": {
     "dataset_id": "uuid",
     "anomaly_score": 0.12
+  },
+  "inclusion": {
+    "root": "64-char-hex",
+    "leaf_index": 0,
+    "proof": ["64-char-hex", "..."],
+    "batch_id": "uuid",
+    "verified_locally": true,
+    "verified_on_chain": true
   }
 }
 ```
+
+`inclusion` is `null` for datasets anchored individually. For batched datasets it
+carries everything a third party needs to verify membership against the anchored
+Merkle root: the root, the leaf position, and the bottom-up sibling path.
+`verified_locally` re-runs the proof check in the backend, while
+`verified_on_chain` reports the contract's own `verify_inclusion` verdict (or
+`null` when the check could not be evaluated).
+
+#### `POST /api/v1/batches`
+Build a Merkle root over a set of datasets and return an unsigned root-anchoring transaction.
+
+**Request:**
+```json
+{
+  "submitter_address": "GABC...",
+  "dataset_ids": ["uuid-1", "uuid-2"]   // leaf order follows this list
+}
+```
+
+**Behaviour:**
+- All datasets must exist, belong to `submitter_address`, and not already be in a batch.
+- The batch may not exceed `MAX_BATCH_SIZE` (default 1024) datasets, and `dataset_ids` must be unique.
+- Leaves are committed in the order given, and each dataset records its `leaf_index`, `merkle_root`, and `merkle_proof`.
+
+**Response (201 Created):**
+```json
+{
+  "batch_id": "uuid",
+  "merkle_root": "64-char-hex",
+  "leaf_count": 2,
+  "unsigned_transaction_xdr": "AAAA...",
+  "leaves": [
+    {
+      "dataset_id": "uuid-1",
+      "dataset_hash": "64-char-hex",
+      "leaf_index": 0,
+      "merkle_proof": ["64-char-hex"],
+      "anomaly_score": 0.12
+    }
+  ],
+  "created_at": "2026-09-12T09:46:41Z"
+}
+```
+
+#### `POST /api/v1/batches/{batch_id}/submit`
+Submit the researcher-signed root transaction. On success the batch and every dataset it covers are marked `anchored` and share the one transaction hash.
+
+#### `GET /api/v1/batches`
+List batches, most recent first.
+
+#### `GET /api/v1/batches/{batch_id}`
+Fetch a single batch by ID.
 
 #### `GET /api/v1/health`
 Health check endpoint. Probes the Soroban RPC endpoint on every call and
@@ -612,6 +738,8 @@ geoguard-ledger/
 │   ├── tests/
 │   │   ├── conftest.py
 │   │   ├── test_datasets.py
+│   │   ├── test_batches.py
+│   │   ├── test_merkle.py
 │   │   ├── test_verify.py
 │   │   └── fixtures/
 │   │       └── sample.csv
@@ -701,6 +829,8 @@ Testing is mandatory at every layer of the stack. All PRs must include tests for
 - Verify that `anchor_hash` prevents double-anchoring.
 - Verify that `transfer_admin` rejects unauthorized callers.
 - Verify that `extend_ttl` fails for non-existent hashes.
+- Verify that `anchor_root` prevents empty and duplicate batches.
+- Verify inclusion proofs for even, odd, and single-leaf trees, and that a proof is rejected for a leaf outside the batch or against an unanchored root.
 
 **Run:** `cd contracts/geoguard-ledger && cargo test`
 
@@ -713,6 +843,8 @@ Testing is mandatory at every layer of the stack. All PRs must include tests for
 backend/tests/
 ├── conftest.py          # Fixtures: test client, DB session, mocked Soroban RPC
 ├── test_datasets.py     # POST /datasets, submission, listing
+├── test_batches.py      # POST /batches, root submission, membership checks
+├── test_merkle.py       # Merkle roots and inclusion-proof golden vectors
 ├── test_verify.py       # POST /verify, hash comparison
 ├── test_parser.py       # CSV/JSON parsing and canonical conversion
 ├── test_parser_json_types.py # JSON type preservation / hash equivalence
@@ -974,11 +1106,26 @@ chore(ci): add Soroban contract test workflow
 - Add Vitest component tests and Playwright E2E tests.
 - Implement all UX states: loading spinners, error toasts, empty states, transaction pending animations.
 
+### Phase 5: Batched Anchoring (Scale Hardening) — ✅ COMPLETED
+
+| Task | Deliverable | Status |
+|------|-------------|:---:|
+| Merkle tree service | Deterministic tree construction and inclusion proofs (`app/services/merkle.py`). | ✅ |
+| On-chain root anchoring | `anchor_root`, `get_root`, `verify_inclusion`, `get_batch_count`, `get_total_batches`, `extend_root_ttl`, `RootRecord`. | ✅ |
+| Batch API | `POST /batches`, `POST /batches/{id}/submit`, `GET /batches`, `GET /batches/{id}`. | ✅ |
+| Proof surfacing | `/verify` returns an `inclusion` block for batched datasets, with local and on-chain verdicts. | ✅ |
+| Batch persistence | `batches` table plus `batch_id`, `merkle_root`, `leaf_index`, `merkle_proof` on `datasets`. | ✅ |
+| Tests | Contract (Merkle), Merkle-service, and batch-API suites. | ✅ |
+
+**Remaining Work (Phase 5):**
+- TTL renewal scheduler for roots (the batch entry that actually needs renewing).
+- Frontend support for creating batches and displaying inclusion proofs.
+
 ### Post-Launch
 
 - **IPFS/Arweave integration** for decentralized raw data storage.
-- **Merkle Tree Batching (`anchor_root`):** A new contract function that anchors a Merkle root instead of individual hashes. This collapses O(n) rent costs into O(1) by storing thousands of dataset proofs under a single Persistent key. Individual verification is performed via Merkle inclusion proofs generated off-chain (backend or client-side) and validated against the on-chain root. This is essential for production scale.
-- **TTL Renewal Automation:** A backend scheduler (Celery Beat) that proactively calls `extend_ttl()` on records approaching expiry, acting as an automated rent payer so researchers never lose query access to their proofs.
+- **TTL Renewal Automation:** A backend scheduler (Celery Beat) that proactively calls `extend_root_ttl()` on roots approaching expiry, acting as an automated rent payer so researchers never lose query access to their proofs. Batch roots make this tractable: one renewal keeps an entire batch alive.
+- **Batch-aware frontend:** Surface batch creation and Merkle proof display in the upload and verification UIs.
 - **Researcher reputation system** (on-chain scores based on anomaly-free submissions).
 - **Multi-model support** (pluggable AI backends).
 - **Mobile-responsive audit view** for in-field verification.

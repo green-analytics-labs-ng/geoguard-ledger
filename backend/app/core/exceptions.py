@@ -30,6 +30,12 @@ class AnomalyDetectionError(GeoGuardError):
     pass
 
 
+class MerkleError(GeoGuardError):
+    """Merkle batch construction or inclusion-proof error."""
+
+    pass
+
+
 def register_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(GeoGuardError)
     async def geoguard_error_handler(request: Request, exc: GeoGuardError) -> JSONResponse:

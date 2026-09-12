@@ -24,6 +24,11 @@ class Settings(BaseSettings):
     # API directly, so it is enforced again here before the body is buffered.
     max_upload_size_bytes: int = 50 * 1024 * 1024  # 50 MB
 
+    # Maximum number of datasets in a single Merkle batch. Bounds the work a
+    # single request does (tree build, proof generation, and transaction
+    # simulation) and keeps the simulated resource footprint within RPC limits.
+    max_batch_size: int = 1024
+
     ai_model_version: str = "isoforest_v1"
     ai_anomaly_threshold: float = 0.20
     # Toggle the domain-informed geochemical plausibility checks that run

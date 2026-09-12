@@ -134,6 +134,41 @@ def mock_submit_transaction_failure():
 
 
 @pytest.fixture
+def mock_build_root_transaction():
+    """Mock the Soroban Merkle-root transaction builder to return a fake XDR."""
+    with patch("app.api.v1.batches.build_anchor_root_transaction") as mock:
+        mock.return_value = "AAAAAgAAAABbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        yield mock
+
+
+@pytest.fixture
+def mock_submit_batch_transaction():
+    """Mock the Soroban root transaction submitter to return success."""
+    with patch("app.api.v1.batches.submit_transaction") as mock:
+        mock.return_value = {
+            "tx_hash": MOCK_TX_HASH,
+            "ledger": MOCK_LEDGER,
+        }
+        yield mock
+
+
+@pytest.fixture
+def mock_submit_batch_transaction_failure():
+    """Mock the Soroban root transaction submitter to raise an error."""
+    with patch("app.api.v1.batches.submit_transaction") as mock:
+        mock.side_effect = RuntimeError("Soroban RPC error")
+        yield mock
+
+
+@pytest.fixture
+def mock_verify_inclusion_on_chain():
+    """Mock the on-chain inclusion check to confirm the proof."""
+    with patch("app.api.v1.verify.verify_inclusion_on_chain") as mock:
+        mock.return_value = True
+        yield mock
+
+
+@pytest.fixture
 def mock_verify_on_chain_found():
     """Mock the Soroban verifier to return an on-chain record."""
     with patch("app.api.v1.verify.verify_on_chain") as mock:

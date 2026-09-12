@@ -17,6 +17,10 @@ http://localhost:8000/api/v1
 | `POST` | `/datasets/{id}/submit` | Submit a signed transaction to Stellar |
 | `GET` | `/datasets` | List all datasets |
 | `GET` | `/datasets/{id}` | Get dataset details |
+| `POST` | `/batches` | Build a Merkle root over a set of datasets and get an unsigned anchor transaction |
+| `POST` | `/batches/{id}/submit` | Submit a signed root transaction and anchor the whole batch |
+| `GET` | `/batches` | List batches |
+| `GET` | `/batches/{id}` | Get batch details |
 | `POST` | `/verify` | Verify a dataset against on-chain proof |
 
 For full request/response schemas, see [SPECIFICATION.md](../SPECIFICATION.md#5-backend-api-specification-fastapi).
@@ -91,3 +95,34 @@ even for datasets too small to score, and are persisted with the dataset:
 
 See [ai_model.md](ai_model.md#geochemical-range-validation) for the full set of
 checked parameters.
+
+## Batch anchoring
+
+Anchoring a Merkle root commits many datasets to a single on-chain entry,
+keeping storage cost and rent flat as submissions grow. `POST /batches` returns
+the root plus a per-dataset inclusion proof; `POST /batches/{id}/submit` marks
+the batch and all of its datasets `anchored` once the signed transaction is
+confirmed.
+
+`POST /verify` reports batch membership in an `inclusion` block:
+
+```json
+{
+  "match": true,
+  "on_chain_record": null,
+  "local_record": { "dataset_id": "uuid", "status": "anchored" },
+  "re_computed_hash": null,
+  "inclusion": {
+    "root": "64-char-hex",
+    "leaf_index": 0,
+    "proof": ["64-char-hex"],
+    "batch_id": "uuid",
+    "verified_locally": true,
+    "verified_on_chain": true
+  }
+}
+```
+
+`inclusion` is `null` for datasets anchored individually. `verified_locally`
+re-checks the proof in the backend; `verified_on_chain` is the contract's own
+`verify_inclusion` verdict, or `null` when it could not be evaluated.

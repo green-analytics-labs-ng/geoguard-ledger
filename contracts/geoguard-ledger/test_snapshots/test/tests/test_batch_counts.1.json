@@ -6,6 +6,8 @@
   "auth": [
     [],
     [],
+    [],
+    [],
     [
       [
         "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M",
@@ -13,19 +15,42 @@
           "function": {
             "contract_fn": {
               "contract_address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
-              "function_name": "anchor_hash",
+              "function_name": "anchor_root",
               "args": [
                 {
                   "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"
                 },
                 {
-                  "bytes": "0101010101010101010101010101010101010101010101010101010101010101"
+                  "bytes": "b331da6ec49d4547d9942a6727e5123f69bed5a0b97ac171cfbfd6201431fcfa"
                 },
                 {
-                  "u32": 0
+                  "u32": 10
+                }
+              ]
+            }
+          },
+          "sub_invocations": []
+        }
+      ]
+    ],
+    [],
+    [
+      [
+        "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M",
+        {
+          "function": {
+            "contract_fn": {
+              "contract_address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
+              "function_name": "anchor_root",
+              "args": [
+                {
+                  "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"
                 },
                 {
-                  "symbol": "v1"
+                  "bytes": "c673db2a8154b3024bf1bb380e1242f712bb5696d69dfda6b1d3fb2d7fd7f671"
+                },
+                {
+                  "u32": 20
                 }
               ]
             }
@@ -55,10 +80,10 @@
             "key": {
               "vec": [
                 {
-                  "symbol": "Record"
+                  "symbol": "BatchCount"
                 },
                 {
-                  "bytes": "0101010101010101010101010101010101010101010101010101010101010101"
+                  "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"
                 }
               ]
             },
@@ -75,10 +100,55 @@
                 "key": {
                   "vec": [
                     {
-                      "symbol": "Record"
+                      "symbol": "BatchCount"
                     },
                     {
-                      "bytes": "0101010101010101010101010101010101010101010101010101010101010101"
+                      "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"
+                    }
+                  ]
+                },
+                "durability": "persistent",
+                "val": {
+                  "u32": 2
+                }
+              }
+            },
+            "ext": "v0"
+          },
+          4095
+        ]
+      ],
+      [
+        {
+          "contract_data": {
+            "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
+            "key": {
+              "vec": [
+                {
+                  "symbol": "Root"
+                },
+                {
+                  "bytes": "b331da6ec49d4547d9942a6727e5123f69bed5a0b97ac171cfbfd6201431fcfa"
+                }
+              ]
+            },
+            "durability": "persistent"
+          }
+        },
+        [
+          {
+            "last_modified_ledger_seq": 0,
+            "data": {
+              "contract_data": {
+                "ext": "v0",
+                "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
+                "key": {
+                  "vec": [
+                    {
+                      "symbol": "Root"
+                    },
+                    {
+                      "bytes": "b331da6ec49d4547d9942a6727e5123f69bed5a0b97ac171cfbfd6201431fcfa"
                     }
                   ]
                 },
@@ -87,26 +157,18 @@
                   "map": [
                     {
                       "key": {
-                        "symbol": "anomaly_score"
+                        "symbol": "leaf_count"
                       },
                       "val": {
-                        "u32": 0
+                        "u32": 10
                       }
                     },
                     {
                       "key": {
-                        "symbol": "dataset_hash"
+                        "symbol": "merkle_root"
                       },
                       "val": {
-                        "bytes": "0101010101010101010101010101010101010101010101010101010101010101"
-                      }
-                    },
-                    {
-                      "key": {
-                        "symbol": "model_version"
-                      },
-                      "val": {
-                        "symbol": "v1"
+                        "bytes": "b331da6ec49d4547d9942a6727e5123f69bed5a0b97ac171cfbfd6201431fcfa"
                       }
                     },
                     {
@@ -131,7 +193,7 @@
             },
             "ext": "v0"
           },
-          1000000
+          3110400
         ]
       ],
       [
@@ -141,10 +203,10 @@
             "key": {
               "vec": [
                 {
-                  "symbol": "SubCount"
+                  "symbol": "Root"
                 },
                 {
-                  "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"
+                  "bytes": "c673db2a8154b3024bf1bb380e1242f712bb5696d69dfda6b1d3fb2d7fd7f671"
                 }
               ]
             },
@@ -161,22 +223,55 @@
                 "key": {
                   "vec": [
                     {
-                      "symbol": "SubCount"
+                      "symbol": "Root"
                     },
                     {
-                      "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"
+                      "bytes": "c673db2a8154b3024bf1bb380e1242f712bb5696d69dfda6b1d3fb2d7fd7f671"
                     }
                   ]
                 },
                 "durability": "persistent",
                 "val": {
-                  "u32": 1
+                  "map": [
+                    {
+                      "key": {
+                        "symbol": "leaf_count"
+                      },
+                      "val": {
+                        "u32": 20
+                      }
+                    },
+                    {
+                      "key": {
+                        "symbol": "merkle_root"
+                      },
+                      "val": {
+                        "bytes": "c673db2a8154b3024bf1bb380e1242f712bb5696d69dfda6b1d3fb2d7fd7f671"
+                      }
+                    },
+                    {
+                      "key": {
+                        "symbol": "submitter"
+                      },
+                      "val": {
+                        "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"
+                      }
+                    },
+                    {
+                      "key": {
+                        "symbol": "timestamp"
+                      },
+                      "val": {
+                        "u64": 0
+                      }
+                    }
+                  ]
                 }
               }
             },
             "ext": "v0"
           },
-          4095
+          3110400
         ]
       ],
       [
@@ -223,7 +318,7 @@
                           ]
                         },
                         "val": {
-                          "u32": 1
+                          "u32": 0
                         }
                       },
                       {
@@ -235,7 +330,7 @@
                           ]
                         },
                         "val": {
-                          "u32": 0
+                          "u32": 2
                         }
                       }
                     ]
@@ -270,6 +365,39 @@
                 "key": {
                   "ledger_key_nonce": {
                     "nonce": 801925984706572462
+                  }
+                },
+                "durability": "temporary",
+                "val": "void"
+              }
+            },
+            "ext": "v0"
+          },
+          6311999
+        ]
+      ],
+      [
+        {
+          "contract_data": {
+            "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M",
+            "key": {
+              "ledger_key_nonce": {
+                "nonce": 5541220902715666415
+              }
+            },
+            "durability": "temporary"
+          }
+        },
+        [
+          {
+            "last_modified_ledger_seq": 0,
+            "data": {
+              "contract_data": {
+                "ext": "v0",
+                "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M",
+                "key": {
+                  "ledger_key_nonce": {
+                    "nonce": 5541220902715666415
                   }
                 },
                 "durability": "temporary",

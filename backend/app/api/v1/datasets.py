@@ -56,6 +56,10 @@ class DatasetResponse(BaseModel):
     anomaly_report: AnomalyReport | None = None
     stellar_tx_hash: str | None = None
     explorer_url: str | None = None
+    batch_id: str | None = None
+    merkle_root: str | None = None
+    leaf_index: int | None = None
+    merkle_proof: list[str] | None = None
     created_at: str
     anchored_at: str | None = None
 
@@ -228,6 +232,10 @@ def _dataset_to_response(dataset: Dataset) -> DatasetResponse:
         anomaly_report=anomaly_report,
         stellar_tx_hash=dataset.stellar_tx_hash,
         explorer_url=dataset.explorer_url,
+        batch_id=dataset.batch_id,
+        merkle_root=dataset.merkle_root,
+        leaf_index=dataset.leaf_index,
+        merkle_proof=dataset.merkle_proof,
         created_at=dataset.created_at.isoformat() if dataset.created_at else "",
         anchored_at=dataset.anchored_at.isoformat() if dataset.anchored_at else None,
     )

@@ -65,6 +65,31 @@ class Dataset(Base):
         comment="Geochemical plausibility findings raised at upload time",
     )
 
+    # Merkle batch membership (populated when the dataset is anchored as part
+    # of a batch rather than individually)
+    batch_id: Mapped[str | None] = mapped_column(
+        String(36),
+        nullable=True,
+        index=True,
+        comment="Batch this dataset was anchored in, if any",
+    )
+    merkle_root: Mapped[str | None] = mapped_column(
+        String(64),
+        nullable=True,
+        index=True,
+        comment="Hex Merkle root of the batch containing this dataset",
+    )
+    leaf_index: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+        comment="Position of this dataset's hash within the batch leaves",
+    )
+    merkle_proof: Mapped[list[str] | None] = mapped_column(
+        JSON,
+        nullable=True,
+        comment="Bottom-up hex sibling hashes proving batch inclusion",
+    )
+
     # Transaction data
     unsigned_transaction_xdr: Mapped[str | None] = mapped_column(
         Text,

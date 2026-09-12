@@ -10,4 +10,7 @@ pub enum Error {
     HashAlreadyAnchored = 3,
     HashNotFound = 4,
     Unauthorized = 5,
+    RootAlreadyAnchored = 6,
+    RootNotFound = 7,
+    EmptyBatch = 8,
 }

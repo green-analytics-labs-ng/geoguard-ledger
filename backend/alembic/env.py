@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 from alembic import context
 from app.config import settings
 from app.db.base import Base
+from app.models.batch import Batch  # noqa: F401 — ensure models are imported
 from app.models.dataset import Dataset  # noqa: F401 — ensure models are imported
 
 # Alembic Config object

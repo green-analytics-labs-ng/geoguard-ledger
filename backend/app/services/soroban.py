@@ -118,12 +118,47 @@ async def build_anchor_transaction(
     Returns:
         Unsigned transaction envelope XDR (base64 string).
     """
+    # Build invoke arguments as SCVal objects for the contract function.
+    # NOTE: scval.to_*() creates SCVal from Python value (Python->SCVal serialization).
+    # scval.from_*() does the reverse (SCVal->Python deserialization).
+    invoke_args = [
+        StellarAddress(submitter_address).to_xdr_sc_val(),  # Address
+        scval.to_bytes(_hex_to_bytes(dataset_hash)),  # BytesN<32>
+        scval.to_uint32(_score_to_fixed(anomaly_report["score"])),  # u32
+        scval.to_symbol(anomaly_report["model_version"]),  # Symbol
+    ]
+
+    return await _build_and_prepare_unsigned(
+        submitter_address,
+        "anchor_hash",
+        invoke_args,
+        log_context=f"hash={dataset_hash[:12]}",
+    )
+
+
+async def _build_and_prepare_unsigned(
+    submitter_address: str,
+    function_name: str,
+    invoke_args: list[Any],
+    log_context: str = "",
+) -> str:
+    """Build a contract invocation, simulate it, and return the assembled XDR.
+
+    Shared by every anchoring flow:
+    1. Load the submitter's on-chain account for the sequence number.
+    2. Build a base transaction with the invoke operation.
+    3. Simulate to obtain the resource footprint and cost.
+    4. Assemble the final unsigned transaction with ``prepare_transaction`` so
+       the frontend only has to sign it.
+
+    Raises:
+        ValueError: If ``CONTRACT_ID`` is unset or the account does not exist.
+        RuntimeError: If simulation fails or the contract rejects the call.
+    """
     if not settings.contract_id:
         raise ValueError("CONTRACT_ID not configured — cannot build transaction")
 
     server = _get_server()
-    contract_id = settings.contract_id
-    network_passphrase = settings.soroban_network_passphrase
 
     # 1. Load the submitter's account (needed for sequence number).
     #    Offloaded to thread pool to avoid blocking the event loop.
@@ -135,27 +170,16 @@ async def build_anchor_transaction(
             "Ensure the account exists and is funded on the Stellar network."
         ) from None
 
-    # 2. Build invoke arguments
-    hash_bytes = _hex_to_bytes(dataset_hash)
-    anomaly_score_u32 = _score_to_fixed(anomaly_report["score"])
-    model_version = anomaly_report["model_version"]
-
-    # Build invoke arguments as SCVal objects for the contract function.
-    # NOTE: scval.to_*() creates SCVal from Python value (Python->SCVal serialization).
-    # scval.from_*() does the reverse (SCVal->Python deserialization).
-    invoke_args = [
-        StellarAddress(submitter_address).to_xdr_sc_val(),  # Address
-        scval.to_bytes(hash_bytes),  # BytesN<32>
-        scval.to_uint32(anomaly_score_u32),  # u32
-        scval.to_symbol(model_version),  # Symbol
-    ]
-
-    # 3. Build the transaction envelope (v15: build() returns TransactionEnvelope directly)
+    # 2. Build the transaction envelope (v15: build() returns TransactionEnvelope directly)
     envelope = (
-        TransactionBuilder(source_account, network_passphrase, base_fee=100)
+        TransactionBuilder(
+            source_account,
+            settings.soroban_network_passphrase,
+            base_fee=100,
+        )
         .append_invoke_contract_function_op(
-            contract_id=contract_id,
-            function_name="anchor_hash",
+            contract_id=settings.contract_id,
+            function_name=function_name,
             parameters=invoke_args,
         )
         .set_timeout(300)
@@ -163,20 +187,21 @@ async def build_anchor_transaction(
     )
 
     logger.debug(
-        "Simulating anchor_hash for hash=%s, submitter=%s",
-        dataset_hash[:12],
+        "Simulating %s (%s) for submitter=%s",
+        function_name,
+        log_context,
         submitter_address[:8],
     )
     try:
         simulation = await asyncio.to_thread(server.simulate_transaction, envelope)
     except Exception as exc:
-        logger.error("Simulation failed for hash=%s: %s", dataset_hash[:12], exc)
+        logger.error("Simulation failed for %s %s: %s", function_name, log_context, exc)
         raise RuntimeError(f"Transaction simulation failed: {exc}") from exc
 
     if simulation.error:
         raise RuntimeError(f"Transaction simulation error: {simulation.error}")
 
-    # 4. Assemble the transaction with simulation results.
+    # 3. Assemble the transaction with simulation results.
     #    prepare_transaction bakes in the resource footprint, fee, and
     #    authorization entries so the frontend only needs to sign it.
     assembled_tx: TransactionEnvelope = await asyncio.to_thread(
@@ -184,6 +209,38 @@ async def build_anchor_transaction(
     )
 
     return str(assembled_tx.to_xdr())
+
+
+async def build_anchor_root_transaction(
+    submitter_address: str,
+    merkle_root: str,
+    leaf_count: int,
+) -> str:
+    """Build an unsigned Soroban transaction anchoring a Merkle root.
+
+    Anchors one root for a whole batch of datasets instead of one entry per
+    dataset, which keeps the on-chain storage cost flat as submissions grow.
+
+    Args:
+        submitter_address: Stellar public key (G…) of the researcher.
+        merkle_root: SHA-256 hex string (64 chars) of the batch root.
+        leaf_count: Number of dataset leaves committed to by the root.
+
+    Returns:
+        Unsigned transaction envelope XDR (base64 string).
+    """
+    invoke_args = [
+        StellarAddress(submitter_address).to_xdr_sc_val(),  # Address
+        scval.to_bytes(_hex_to_bytes(merkle_root)),  # BytesN<32>
+        scval.to_uint32(leaf_count),  # u32
+    ]
+
+    return await _build_and_prepare_unsigned(
+        submitter_address,
+        "anchor_root",
+        invoke_args,
+        log_context=f"root={merkle_root[:12]} leaves={leaf_count}",
+    )
 
 
 # ── Transaction Submission ────────────────────────────────────────
@@ -328,3 +385,75 @@ async def verify_on_chain(dataset_hash: str) -> dict[str, Any] | None:
         record["submitter"] = str(submitter)  # type: ignore[call-overload,index]
 
     return record  # type: ignore[return-value]
+
+
+async def verify_inclusion_on_chain(
+    merkle_root: str,
+    dataset_hash: str,
+    index: int,
+    siblings: list[str],
+) -> bool | None:
+    """Check a Merkle inclusion proof against the anchored root on-chain.
+
+    Simulates a read-only ``verify_inclusion`` call, so no gas is consumed.
+    The contract recomputes the root from the leaf and proof, which means a
+    third party does not have to trust the backend's own proof check.
+
+    Args:
+        merkle_root: Hex Merkle root of the batch.
+        dataset_hash: Hex dataset hash whose inclusion is being proven.
+        index: Position of the dataset hash within the batch leaves.
+        siblings: Bottom-up hex sibling hashes.
+
+    Returns:
+        The contract's verdict, or ``None`` when the check could not be
+        evaluated (contract not deployed, RPC failure, or unparseable result)
+        so callers can distinguish "not included" from "could not check".
+    """
+    if not settings.contract_id:
+        logger.warning("verify_inclusion_on_chain called but CONTRACT_ID is not set")
+        return None
+
+    server = _get_server()
+
+    invoke_args = [
+        scval.to_bytes(_hex_to_bytes(merkle_root)),  # BytesN<32>
+        scval.to_bytes(_hex_to_bytes(dataset_hash)),  # BytesN<32>
+        scval.to_uint32(index),  # u32
+        scval.to_vec([scval.to_bytes(_hex_to_bytes(s)) for s in siblings]),  # Vec<BytesN<32>>
+    ]
+
+    # Read-only simulation needs no funded account.
+    dummy_kp = Keypair.random()
+    dummy_account = Account(dummy_kp.public_key, 0)
+
+    envelope = (
+        TransactionBuilder(dummy_account, settings.soroban_network_passphrase, base_fee=100)
+        .append_invoke_contract_function_op(
+            contract_id=settings.contract_id,
+            function_name="verify_inclusion",
+            parameters=invoke_args,
+        )
+        .set_timeout(300)
+        .build()
+    )
+
+    try:
+        simulation = await asyncio.to_thread(server.simulate_transaction, envelope)
+    except Exception as exc:
+        logger.warning("verify_inclusion simulation failed: %s", exc)
+        return None
+
+    if simulation.error or not simulation.results:
+        return None
+
+    try:
+        from stellar_sdk.xdr import SCVal as XDR_SCVal
+
+        retval = XDR_SCVal.from_xdr(simulation.results[0].xdr)
+        native = scval.to_native(retval)
+    except Exception as exc:
+        logger.warning("Failed to parse verify_inclusion result: %s", exc)
+        return None
+
+    return native if isinstance(native, bool) else None

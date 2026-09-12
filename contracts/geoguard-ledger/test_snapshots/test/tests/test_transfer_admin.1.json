@@ -82,6 +82,18 @@
                         "val": {
                           "u32": 0
                         }
+                      },
+                      {
+                        "key": {
+                          "vec": [
+                            {
+                              "symbol": "TotalBatches"
+                            }
+                          ]
+                        },
+                        "val": {
+                          "u32": 0
+                        }
                       }
                     ]
                   }
