@@ -162,19 +162,28 @@ sha256sum -c geoguard_ledger.wasm.sha256
 
 ## The contract the local stack uses
 
-`docker-compose.yml` pins a `CONTRACT_ID` for the backend container. That value
-is **an older deployment than this source** — it predates batch anchoring, so
-batch verification and TTL renewal against it fail. To exercise those flows
-locally, deploy a current contract and update the ID:
+`docker-compose.yml` pins a `CONTRACT_ID` for the backend container, and
+`backend/.env` pins one for local runs. Those values were once an older
+deployment that predated batch anchoring — precisely the drift the smoke test
+reports — so re-check them whenever the contract source changes.
+
+To deploy a replacement:
 
 ```bash
-DEPLOYER_SECRET=S... ./scripts/deploy_contract.sh --admin G... --contract-id-out /tmp/cid
-CONTRACT_ID=$(cat /tmp/cid)
-cd backend && CONTRACT_ID=$CONTRACT_ID uv run python -m tests.smoke_testnet --read-only
+DEPLOYER_SECRET=S... ./scripts/deploy_contract.sh --admin G... --write-env --contract-id-out /tmp/cid
+cd backend && CONTRACT_ID=$(cat /tmp/cid) uv run python -m tests.smoke_testnet --read-only
 ```
 
-Then update `CONTRACT_ID` in `docker-compose.yml` (or `backend/.env`) and restart
-the backend.
+`--write-env` updates `backend/.env`; `docker-compose.yml` does not read that
+file, so update its `CONTRACT_ID` too and restart the backend.
+
+A deployment is a new, permanent instance. Datasets anchored against the
+previous one stay bound to it and still verify, so replacing the ID does not
+invalidate them — it only changes which contract the local stack talks to.
+
+Should you update it again, `CONTRACT_ID` changes in both places; the
+`--contract-id-out` file the deploy script writes is what CI uses to hand the ID
+to the smoke test within a single run.
 
 ## Secrets
 

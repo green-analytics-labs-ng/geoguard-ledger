@@ -25,11 +25,11 @@ services:
       DATABASE_URL: postgresql+asyncpg://geoguard:geoguard_dev@db:5432/geoguard_ledger
       SOROBAN_RPC_URL: https://soroban-testnet.stellar.org
       SOROBAN_NETWORK_PASSPHRASE: "Test SDF Network ; September 2015"
-      # Older deployment that predates batch anchoring: it has no anchor_root,
-      # verify_inclusion or extend_root_ttl, so batch verification and TTL
-      # renewal fail against it. Deploy a current contract and replace this —
-      # see docs/deployment.md.
-      CONTRACT_ID: "CB5DE4TZB5UVWZNBFVM424XHF6HVYZC2G57K5BMNNVCAV7WWK4PFJYTR"
+      # Current Testnet deployment: standalone anchors, batch roots with
+      # on-chain inclusion proofs, and both TTL renewal entry points.
+      # Deployments are permanent and never replace an earlier instance, so a
+      # deployment can lag this source — docs/deployment.md has the runbook.
+      CONTRACT_ID: "CBY2P6QWTUYNRXFL6HDXOMUUBUZT4VORPBOLUFRWOIRANK7VCLMYCXC4"
     ports:
       - "8000:8000"
     depends_on:
