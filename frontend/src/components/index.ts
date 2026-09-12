@@ -7,6 +7,7 @@ export { default as AnomalyBadge } from "./AnomalyBadge";
 export { default as AnomalyWarnings } from "./AnomalyWarnings";
 export { default as TxExplorerLink } from "./TxExplorerLink";
 export { default as DatasetTable } from "./DatasetTable";
+export { default as BatchBadge } from "./BatchBadge";
 export { default as MerkleProof } from "./MerkleProof";
 export { default as VerificationResult } from "./VerificationResult";
 export { default as ErrorBoundary } from "./ErrorBoundary";

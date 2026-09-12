@@ -129,4 +129,21 @@ describe("MerkleProof", () => {
 
     expect(screen.getByText("Not verified")).toBeTruthy();
   });
+
+  it("shows the proof material without grading it when showVerdict is off", () => {
+    render(
+      <MerkleProof
+        root={ROOT}
+        leafIndex={1}
+        proof={[SIBLING_1]}
+        showVerdict={false}
+      />,
+    );
+
+    expect(screen.getByText(ROOT)).toBeTruthy();
+    expect(screen.getByText(SIBLING_1)).toBeTruthy();
+    // An ungraded proof must not be labelled as failed.
+    expect(screen.queryByText("Not verified")).toBeNull();
+    expect(screen.queryByText(/Verified locally/)).toBeNull();
+  });
 });

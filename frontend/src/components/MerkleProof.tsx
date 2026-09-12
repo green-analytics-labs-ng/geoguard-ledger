@@ -89,6 +89,12 @@ interface Props {
   batchId?: string | null;
   verifiedLocally?: boolean;
   verifiedOnChain?: boolean | null;
+  /**
+   * Whether to show how the proof was validated. Set false where the proof is
+   * presented as a claim that has not been checked yet — the badge would
+   * otherwise read "Not verified" and imply the proof itself failed.
+   */
+  showVerdict?: boolean;
 }
 
 /**
@@ -103,24 +109,29 @@ export default function MerkleProof({
   batchId,
   verifiedLocally,
   verifiedOnChain,
+  showVerdict = true,
 }: Props) {
   const verdict = inclusionVerdict(verifiedLocally, verifiedOnChain);
-  const verified = isInclusionVerified(verdict);
+  const verified = showVerdict && isInclusionVerified(verdict);
 
   return (
     <div
       className={`border rounded-lg p-4 space-y-4 ${
-        verified ? "border-gray-200 bg-white" : "border-red-200 bg-red-50"
+        showVerdict && !verified
+          ? "border-red-200 bg-red-50"
+          : "border-gray-200 bg-white"
       }`}
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-sm font-semibold text-gray-700">
           Merkle Inclusion Proof
         </h3>
-        <InclusionVerdictBadge
-          verifiedLocally={verifiedLocally}
-          verifiedOnChain={verifiedOnChain}
-        />
+        {showVerdict && (
+          <InclusionVerdictBadge
+            verifiedLocally={verifiedLocally}
+            verifiedOnChain={verifiedOnChain}
+          />
+        )}
       </div>
 
       <div>

@@ -632,8 +632,8 @@ the RPC is reachable and healthy, `{"status": "ok", "soroban_rpc":
 |-------|-----------|---------|
 | `/` | `DashboardPage` | Overview: total datasets anchored, recent submissions, quick actions. |
 | `/upload` | `UploadPage` | CSV drag-and-drop upload, column selection, preview, submit. |
-| `/datasets` | `DatasetListPage` | Paginated table of all submitted datasets with status badges. |
-| `/datasets/:id` | `DatasetDetailPage` | Full detail: hash, anomaly report, on-chain tx link, verify button. |
+| `/datasets` | `DatasetListPage` | Table of all submitted datasets with status and batch badges. |
+| `/datasets/:id` | `DatasetDetailPage` | Full detail: hash, anomaly report, on-chain tx link, batch membership with inclusion proof, verify button. |
 | `/verify` | `VerifyPage` | Upload or paste a hash to verify against the blockchain. |
 | `/settings` | `SettingsPage` | Stellar network selection (Testnet/Mainnet), wallet connection. |
 
@@ -647,10 +647,11 @@ the RPC is reachable and healthy, `{"status": "ok", "soroban_rpc":
 | `AnomalyBadge` | Color-coded badge (green < 5%, yellow 5–20%, red > 20%). |
 | `TxExplorerLink` | Clickable link to Stellar Expert for a given transaction hash. |
 | `VerificationResult` | Side-by-side comparison of on-chain record vs. local/computed values. |
-| `DatasetTable` | Sortable table with columns: date, hash (truncated), anomaly score, status, actions. |
+| `DatasetTable` | Table with columns: date, dataset, hash (truncated), batch, anomaly score, status, transaction. |
 | `SingleAnchorFlow` | Full single-dataset anchor flow: upload → preview → AI report → sign → confirmed. |
 | `BatchAnchorFlow` | Collect datasets, commit them to one Merkle root, and anchor the whole batch with one signature. |
-| `MerkleProof` | Batch root, leaf position, sibling path, and local/on-chain verdicts for an inclusion proof. |
+| `MerkleProof` | Batch root, leaf position, sibling path, and local/on-chain verdicts for an inclusion proof. Its verdict can be suppressed where the proof is shown as a claim that has not been checked yet. |
+| `BatchBadge` | Compact marker showing which leaf of a batch a dataset occupies; used in the dataset table and the detail header. |
 
 ### 6.4 Freighter Integration Flow
 
@@ -773,6 +774,7 @@ geoguard-ledger/
 │   │   │   ├── SingleAnchorFlow.tsx
 │   │   │   ├── BatchAnchorFlow.tsx
 │   │   │   ├── MerkleProof.tsx
+│   │   │   ├── BatchBadge.tsx
 │   │   │   ├── AnomalyBadge.tsx
 │   │   │   ├── TxExplorerLink.tsx
 │   │   │   ├── DatasetTable.tsx
@@ -902,6 +904,8 @@ backend/tests/
 - DatasetTable, SubmissionStepper and ErrorBoundary: every render state, including recovery.
 - MerkleProof: verdict tiers (on-chain, local-only, failed), proof paths, and the single-leaf empty path.
 - BatchAnchorFlow: add/remove members, leaf order, root creation, single-signature anchoring, and failure paths.
+- Batch membership: standalone vs. batched datasets, a single-leaf batch's empty path, and an as-yet-unrecorded path.
+- DatasetTable and DatasetDetailPage: the batch column and badge, and the detail page's proof section, batch-transaction label and re-check link.
 - VerificationResult: individually anchored, batch-included, and failed-proof outcomes.
 
 **Run:** `cd frontend && npm test`
@@ -1126,11 +1130,11 @@ chore(ci): add Soroban contract test workflow
 | Proof surfacing | `/verify` returns an `inclusion` block for batched datasets, with local and on-chain verdicts. | ✅ |
 | Batch persistence | `batches` table plus `batch_id`, `merkle_root`, `leaf_index`, `merkle_proof` on `datasets`. | ✅ |
 | Tests | Contract (Merkle), Merkle-service, batch-API, and frontend suites. | ✅ |
-| Frontend batching | `BatchAnchorFlow` builds and anchors a batch from the upload page; `MerkleProof` displays the root and inclusion proof on the upload and verify pages; `/verify` accepts a linked `dataset_hash`. | ✅ |
+| Frontend batching | `BatchAnchorFlow` builds and anchors a batch from the upload page; `MerkleProof` displays the root and inclusion proof on the upload and verify pages; `/verify` accepts a linked `dataset_hash`; the dataset list and detail pages surface batch membership via `BatchBadge` and the stored proof path. | ✅ |
 
 **Remaining Work (Phase 5):**
 - TTL renewal scheduler for roots (the batch entry that actually needs renewing).
-- Batch listing and management UI (the API is ready; the pages are not wired).
+- Batch listing and management UI — the API is ready and dataset pages now show membership, but there is no batch index or management page.
 
 ### Post-Launch
 

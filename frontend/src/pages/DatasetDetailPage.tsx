@@ -3,8 +3,11 @@ import { useParams, useNavigate, Link } from "react-router-dom";
 import { useWallet } from "../context/WalletContext";
 import { getDataset } from "../api/datasets";
 import AnomalyBadge from "../components/AnomalyBadge";
+import BatchBadge from "../components/BatchBadge";
+import MerkleProof from "../components/MerkleProof";
 import TxExplorerLink from "../components/TxExplorerLink";
 import WalletConnector from "../components/WalletConnector";
+import { batchMembership } from "../utils/merkle";
 import type { DatasetResponse } from "../types";
 
 export default function DatasetDetailPage() {
@@ -65,6 +68,10 @@ export default function DatasetDetailPage() {
     );
   }
 
+  // A batched dataset is anchored by its batch's root instead of by its own
+  // record, so its integrity claim is an inclusion proof.
+  const membership = batchMembership(dataset);
+
   return (
     <div className="min-h-screen bg-gray-50">
       <nav className="bg-white border-b border-gray-200 px-4 py-3">
@@ -87,6 +94,11 @@ export default function DatasetDetailPage() {
               Dataset Details
             </h1>
             <p className="text-sm text-gray-500 font-mono">ID: {id}</p>
+            {membership && (
+              <div className="mt-2">
+                <BatchBadge membership={membership} />
+              </div>
+            )}
           </div>
           <AnomalyBadge score={dataset.anomaly_score} size="md" showLabel />
         </div>
@@ -146,7 +158,9 @@ export default function DatasetDetailPage() {
               <AnomalyBadge score={dataset.anomaly_score} size="md" />
             </div>
             <div>
-              <p className="text-xs text-gray-500 mb-1">Transaction</p>
+              <p className="text-xs text-gray-500 mb-1">
+                {membership ? "Batch Transaction" : "Transaction"}
+              </p>
               {dataset.stellar_tx_hash ? (
                 <TxExplorerLink
                   txHash={dataset.stellar_tx_hash}
@@ -178,10 +192,41 @@ export default function DatasetDetailPage() {
           )}
         </div>
 
+        {/* Batch membership */}
+        {membership && (
+          <div className="card mt-6 space-y-4">
+            <div>
+              <h2 className="text-sm font-semibold text-gray-700">
+                Batch Membership
+              </h2>
+              <p className="text-sm text-gray-500 mt-1">
+                This dataset has no standalone on-chain record. A batch root
+                covers it, and this inclusion proof is what proves it was
+                anchored.
+              </p>
+            </div>
+
+            <MerkleProof
+              root={membership.root}
+              leafIndex={membership.leafIndex}
+              proof={membership.proof}
+              batchId={membership.batchId}
+              showVerdict={false}
+            />
+
+            <Link
+              to={`/verify?dataset_hash=${dataset.dataset_hash}`}
+              className="inline-block text-sm text-stellar hover:underline"
+            >
+              Re-check this inclusion proof &rarr;
+            </Link>
+          </div>
+        )}
+
         {/* Actions */}
         <div className="flex gap-3 mt-6">
           <Link
-            to={`/verify${dataset.stellar_tx_hash ? `?dataset_hash=${dataset.dataset_hash}` : ""}`}
+            to={`/verify${dataset.stellar_tx_hash || membership ? `?dataset_hash=${dataset.dataset_hash}` : ""}`}
             className="btn-primary"
           >
             Verify On-Chain

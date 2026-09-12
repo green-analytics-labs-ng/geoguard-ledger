@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   AnomalyBadge,
   BatchAnchorFlow,
+  BatchBadge,
   CsvDropzone,
   DatasetTable,
   MerkleProof,
@@ -51,5 +52,9 @@ describe("Component exports", () => {
 
   it("MerkleProof is exported", () => {
     expect(MerkleProof).toBeDefined();
+  });
+
+  it("BatchBadge is exported", () => {
+    expect(BatchBadge).toBeDefined();
   });
 });

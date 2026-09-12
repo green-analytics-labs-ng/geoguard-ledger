@@ -1,12 +1,24 @@
 import { Link } from "react-router-dom";
 import AnomalyBadge from "./AnomalyBadge";
+import BatchBadge from "./BatchBadge";
 import TxExplorerLink from "./TxExplorerLink";
+import { batchMembership } from "../utils/merkle";
 import type { DatasetResponse } from "../types";
 
 interface Props {
   datasets: DatasetResponse[];
   loading: boolean;
   error: string | null;
+}
+
+/**
+ * The batch column: which leaf of a Merkle batch a dataset occupies, or a
+ * placeholder when it was anchored under its own hash.
+ */
+function BatchCell({ dataset }: { dataset: DatasetResponse }) {
+  const membership = batchMembership(dataset);
+  if (!membership) return <span className="text-gray-300">—</span>;
+  return <BatchBadge membership={membership} />;
 }
 
 export default function DatasetTable({ datasets, loading, error }: Props) {
@@ -62,6 +74,7 @@ export default function DatasetTable({ datasets, loading, error }: Props) {
             <th className="px-4 py-3 text-left font-medium text-gray-600">Date</th>
             <th className="px-4 py-3 text-left font-medium text-gray-600">Dataset</th>
             <th className="px-4 py-3 text-left font-medium text-gray-600">Hash</th>
+            <th className="px-4 py-3 text-left font-medium text-gray-600">Batch</th>
             <th className="px-4 py-3 text-left font-medium text-gray-600">Anomaly</th>
             <th className="px-4 py-3 text-left font-medium text-gray-600">Status</th>
             <th className="px-4 py-3 text-left font-medium text-gray-600">TX</th>
@@ -88,6 +101,9 @@ export default function DatasetTable({ datasets, loading, error }: Props) {
                 <code className="text-xs font-mono text-gray-500">
                   {ds.dataset_hash.slice(0, 12)}...
                 </code>
+              </td>
+              <td className="px-4 py-3">
+                <BatchCell dataset={ds} />
               </td>
               <td className="px-4 py-3">
                 <AnomalyBadge score={ds.anomaly_score} />

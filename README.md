@@ -284,7 +284,7 @@ geoguard-ledger/
 ├── frontend/                   # React frontend (TypeScript + Tailwind)
 │   └── src/
 │       ├── pages/              # Dashboard, Upload, Verify, Settings
-│       ├── components/         # CsvDropzone, BatchAnchorFlow, MerkleProof, AnomalyBadge
+│       ├── components/         # CsvDropzone, BatchAnchorFlow, MerkleProof, BatchBadge, AnomalyBadge
 │       ├── hooks/              # useWallet, useDatasets, useVerify
 │       ├── context/            # WalletContext (Freighter state)
 │       ├── tests/              # Vitest + React Testing Library tests
