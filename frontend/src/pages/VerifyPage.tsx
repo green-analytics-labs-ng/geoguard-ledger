@@ -1,5 +1,5 @@
-import { useState, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useCallback, useEffect } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useVerify } from "../hooks/useVerify";
 import VerificationResult, {
   VerificationResultEmpty,
@@ -7,17 +7,30 @@ import VerificationResult, {
 import WalletConnector from "../components/WalletConnector";
 import { validateCsvFile } from "../utils/csv";
 
+const HASH_PATTERN = /^[0-9a-f]{64}$/i;
+
 export default function VerifyPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { result, loading, error, verify, clear } = useVerify();
 
-  const [hashInput, setHashInput] = useState("");
+  // Datasets and batch proofs link here with ?dataset_hash=..., so prefill and
+  // run the check immediately instead of asking the user to paste it again.
+  const linkedHash = searchParams.get("dataset_hash") ?? "";
+
+  const [hashInput, setHashInput] = useState(linkedHash);
   const [mode, setMode] = useState<"hash" | "file">("hash");
   const [fileError, setFileError] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (HASH_PATTERN.test(linkedHash)) {
+      verify(linkedHash);
+    }
+  }, [linkedHash, verify]);
+
   const handleHashSubmit = useCallback(() => {
     const trimmed = hashInput.trim();
-    if (trimmed.length !== 64 || !/^[0-9a-f]{64}$/i.test(trimmed)) {
+    if (!HASH_PATTERN.test(trimmed)) {
       setFileError("Hash must be a 64-character hexadecimal string (SHA-256)");
       return;
     }
@@ -63,9 +76,7 @@ export default function VerifyPage() {
       </nav>
 
       <div className="max-w-3xl mx-auto px-4 py-8">
-        <h1 className="text-2xl font-bold text-stellar mb-2">
-          Verify Dataset
-        </h1>
+        <h1 className="text-2xl font-bold text-stellar mb-2">Verify Dataset</h1>
         <p className="text-sm text-gray-500 mb-8">
           Check whether a dataset's integrity proof exists on the Stellar
           blockchain.

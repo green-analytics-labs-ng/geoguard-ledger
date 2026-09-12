@@ -1,9 +1,12 @@
 export { default as CsvDropzone } from "./CsvDropzone";
 export { default as WalletConnector } from "./WalletConnector";
 export { default as SubmissionStepper } from "./SubmissionStepper";
+export { default as SingleAnchorFlow } from "./SingleAnchorFlow";
+export { default as BatchAnchorFlow } from "./BatchAnchorFlow";
 export { default as AnomalyBadge } from "./AnomalyBadge";
 export { default as AnomalyWarnings } from "./AnomalyWarnings";
 export { default as TxExplorerLink } from "./TxExplorerLink";
 export { default as DatasetTable } from "./DatasetTable";
+export { default as MerkleProof } from "./MerkleProof";
 export { default as VerificationResult } from "./VerificationResult";
 export { default as ErrorBoundary } from "./ErrorBoundary";

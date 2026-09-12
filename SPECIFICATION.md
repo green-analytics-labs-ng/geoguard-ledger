@@ -648,6 +648,9 @@ the RPC is reachable and healthy, `{"status": "ok", "soroban_rpc":
 | `TxExplorerLink` | Clickable link to Stellar Expert for a given transaction hash. |
 | `VerificationResult` | Side-by-side comparison of on-chain record vs. local/computed values. |
 | `DatasetTable` | Sortable table with columns: date, hash (truncated), anomaly score, status, actions. |
+| `SingleAnchorFlow` | Full single-dataset anchor flow: upload → preview → AI report → sign → confirmed. |
+| `BatchAnchorFlow` | Collect datasets, commit them to one Merkle root, and anchor the whole batch with one signature. |
+| `MerkleProof` | Batch root, leaf position, sibling path, and local/on-chain verdicts for an inclusion proof. |
 
 ### 6.4 Freighter Integration Flow
 
@@ -761,11 +764,15 @@ geoguard-ledger/
 │   │   ├── api/
 │   │   │   ├── client.ts       # Axios instance, interceptors
 │   │   │   ├── datasets.ts     # Dataset API calls
+│   │   │   ├── batches.ts      # Batch API calls
 │   │   │   └── verify.ts       # Verification API calls
 │   │   ├── components/
 │   │   │   ├── CsvDropzone.tsx
 │   │   │   ├── WalletConnector.tsx
 │   │   │   ├── SubmissionStepper.tsx
+│   │   │   ├── SingleAnchorFlow.tsx
+│   │   │   ├── BatchAnchorFlow.tsx
+│   │   │   ├── MerkleProof.tsx
 │   │   │   ├── AnomalyBadge.tsx
 │   │   │   ├── TxExplorerLink.tsx
 │   │   │   ├── DatasetTable.tsx
@@ -893,6 +900,9 @@ backend/tests/
 - WalletConnector: connected, disconnected, error states.
 - AnomalyBadge: every score tier and size; AnomalyWarnings: error vs warning styling.
 - DatasetTable, SubmissionStepper and ErrorBoundary: every render state, including recovery.
+- MerkleProof: verdict tiers (on-chain, local-only, failed), proof paths, and the single-leaf empty path.
+- BatchAnchorFlow: add/remove members, leaf order, root creation, single-signature anchoring, and failure paths.
+- VerificationResult: individually anchored, batch-included, and failed-proof outcomes.
 
 **Run:** `cd frontend && npm test`
 
@@ -1092,7 +1102,7 @@ chore(ci): add Soroban contract test workflow
 |------|-------------|:---:|
 | Vite + React scaffold | Project setup, routing, Tailwind. | ✅ |
 | Freighter wallet integration | `useWallet` hook, `WalletContext`, `WalletConnector` component. | ✅ |
-| Upload page | `CsvDropzone`, column selector, preview, submit button. | 🚧 Scaffolded |
+| Upload page | `CsvDropzone` with single-dataset and batch (Merkle root) anchoring modes. | ✅ |
 | Submission workflow | `SubmissionStepper`: Upload → Preview → AI Report → Sign → Confirmed. | 🚧 Scaffolded |
 | Dashboard page | Stats cards, recent submissions table. | 🚧 Scaffolded |
 | Dataset list + detail pages | Table view, detail view with anomaly badge. | 🚧 Scaffolded |
@@ -1115,11 +1125,12 @@ chore(ci): add Soroban contract test workflow
 | Batch API | `POST /batches`, `POST /batches/{id}/submit`, `GET /batches`, `GET /batches/{id}`. | ✅ |
 | Proof surfacing | `/verify` returns an `inclusion` block for batched datasets, with local and on-chain verdicts. | ✅ |
 | Batch persistence | `batches` table plus `batch_id`, `merkle_root`, `leaf_index`, `merkle_proof` on `datasets`. | ✅ |
-| Tests | Contract (Merkle), Merkle-service, and batch-API suites. | ✅ |
+| Tests | Contract (Merkle), Merkle-service, batch-API, and frontend suites. | ✅ |
+| Frontend batching | `BatchAnchorFlow` builds and anchors a batch from the upload page; `MerkleProof` displays the root and inclusion proof on the upload and verify pages; `/verify` accepts a linked `dataset_hash`. | ✅ |
 
 **Remaining Work (Phase 5):**
 - TTL renewal scheduler for roots (the batch entry that actually needs renewing).
-- Frontend support for creating batches and displaying inclusion proofs.
+- Batch listing and management UI (the API is ready; the pages are not wired).
 
 ### Post-Launch
 

@@ -1,8 +1,11 @@
 import { describe, it, expect } from "vitest";
 import {
   AnomalyBadge,
+  BatchAnchorFlow,
   CsvDropzone,
   DatasetTable,
+  MerkleProof,
+  SingleAnchorFlow,
   SubmissionStepper,
   TxExplorerLink,
   VerificationResult,
@@ -36,5 +39,17 @@ describe("Component exports", () => {
 
   it("WalletConnector is exported", () => {
     expect(WalletConnector).toBeDefined();
+  });
+
+  it("SingleAnchorFlow is exported", () => {
+    expect(SingleAnchorFlow).toBeDefined();
+  });
+
+  it("BatchAnchorFlow is exported", () => {
+    expect(BatchAnchorFlow).toBeDefined();
+  });
+
+  it("MerkleProof is exported", () => {
+    expect(MerkleProof).toBeDefined();
   });
 });
