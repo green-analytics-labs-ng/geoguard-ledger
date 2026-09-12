@@ -48,8 +48,24 @@ git checkout -b fix/issue-number
 - If you add an endpoint, update `docs/api_reference.md`
 - If you change a contract function, update `contracts/README.md`
 - If you add a new component, add a brief JSDoc description
+- If you change how anything is deployed or released, update `docs/deployment.md`
 
-### 7. Open a Pull Request
+### 7. Deploying a Contract Change
+
+Contract changes only take effect once they are deployed, and a deployment is
+permanent, so a deployed contract can lag this source indefinitely. Before you
+trust a deployment — and after any contract change that needs one — verify it
+against the network:
+
+```bash
+cd backend && CONTRACT_ID=C... python -m tests.smoke_testnet --read-only
+```
+
+That check needs no key and spends no fees. The full round trip (which anchors,
+proves inclusion, and renews) is `python -m tests.smoke_testnet`. See
+[docs/deployment.md](docs/deployment.md).
+
+### 8. Open a Pull Request
 
 - Use the PR template
 - Link the related issue

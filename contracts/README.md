@@ -8,10 +8,16 @@ cargo build --target wasm32-unknown-unknown --release
 
 ## Optimize
 
+The release profile in `Cargo.toml` already sets `opt-level = "z"`, `lto`, and
+`strip`, which is what CI and the release workflow build with. To run the
+`wasm-opt` pass on top of that:
+
 ```bash
-soroban contract optimize \
-  --wasm target/wasm32-unknown-unknown/release/geoguard_ledger.wasm
+stellar contract build --optimize
 ```
+
+That writes to `target/wasm32v1-none/release/geoguard_ledger.wasm`, not the
+`wasm32-unknown-unknown` path used above — pass `--wasm` if you deploy it.
 
 ## Test
 
@@ -28,19 +34,34 @@ cargo clippy --target wasm32-unknown-unknown -- -D warnings
 
 ## Deploy to Testnet
 
+Use the repository script rather than invoking the CLI by hand: it validates the
+WASM path, extracts the deployed contract ID, and optionally initializes the
+contract. CI's `Deploy to Testnet` workflow runs this same script.
+
 ```bash
-soroban contract deploy \
+DEPLOYER_SECRET=S... ./scripts/deploy_contract.sh --admin G... --write-env
+```
+
+Or with the CLI directly:
+
+```bash
+stellar contract deploy \
   --wasm target/wasm32-unknown-unknown/release/geoguard_ledger.wasm \
-  --source <secret_key> \
+  --source-account <secret_key> \
   --network testnet
 ```
+
+A deployment is permanent and creates a new contract ID; it does not replace a
+previous one. Datasets anchored against an old instance stay bound to it, so any
+drift between the deployed contract and this source is a real problem — see
+[Smoke test](#smoke-test) below.
 
 ## Initialize
 
 ```bash
-soroban contract invoke \
+stellar contract invoke \
   --id <CONTRACT_ID> \
-  --source <admin_secret> \
+  --source-account <admin_secret> \
   --network testnet \
   -- initialize \
   --admin <admin_public_key>
@@ -51,9 +72,9 @@ soroban contract invoke \
 ### Anchor a Hash
 
 ```bash
-soroban contract invoke \
+stellar contract invoke \
   --id <CONTRACT_ID> \
-  --source <submitter_secret> \
+  --source-account <submitter_secret> \
   --network testnet \
   -- anchor_hash \
   --submitter <submitter_public_key> \
@@ -65,7 +86,7 @@ soroban contract invoke \
 ### Verify Integrity
 
 ```bash
-soroban contract invoke \
+stellar contract invoke \
   --id <CONTRACT_ID> \
   --network testnet \
   -- verify_integrity \
@@ -75,9 +96,9 @@ soroban contract invoke \
 ### Anchor a Merkle Root (Batch)
 
 ```bash
-soroban contract invoke \
+stellar contract invoke \
   --id <CONTRACT_ID> \
-  --source <submitter_secret> \
+  --source-account <submitter_secret> \
   --network testnet \
   -- anchor_root \
   --submitter <submitter_public_key> \
@@ -88,7 +109,7 @@ soroban contract invoke \
 ### Verify Batch Inclusion
 
 ```bash
-soroban contract invoke \
+stellar contract invoke \
   --id <CONTRACT_ID> \
   --network testnet \
   -- verify_inclusion \
@@ -101,7 +122,7 @@ soroban contract invoke \
 ### Get Record Count
 
 ```bash
-soroban contract invoke \
+stellar contract invoke \
   --id <CONTRACT_ID> \
   --network testnet \
   -- get_record_count \
@@ -111,10 +132,44 @@ soroban contract invoke \
 ### Get Total Anchored
 
 ```bash
-soroban contract invoke \
+stellar contract invoke \
   --id <CONTRACT_ID> \
   --network testnet \
   -- get_total_anchored
+```
+
+### Extend a TTL (Record or Root)
+
+Renewal is permissionless: any funded account may push an expiry out, and a call
+against an entry that is still well covered is a no-op.
+
+```bash
+stellar contract invoke \
+  --id <CONTRACT_ID> \
+  --source-account <payer_secret> \
+  --network testnet \
+  -- extend_ttl \
+  --dataset_hash <64-char-hex> \
+  --extend_to 3110400
+```
+
+Swap `extend_ttl`/`--dataset_hash` for `extend_root_ttl`/`--merkle_root` to renew
+a batch root instead. The backend does both on a schedule
+(`cd backend && python -m app.jobs.renew_ttl`).
+
+## Smoke test
+
+`backend/tests/smoke_testnet.py` checks a *deployed* contract rather than the
+source: it confirms the entry points the backend calls actually exist on the
+instance, then anchors a record, proves batch inclusion against an anchored
+root, and renews both. A contract deployed before batching existed passes every
+unit test while failing the first of those checks, which is the drift this
+catches.
+
+```bash
+cd backend
+CONTRACT_ID=C... uv run python -m tests.smoke_testnet --read-only   # no key, no fees
+SMOKE_TEST_SIGNER_SECRET=S... uv run python -m tests.smoke_testnet  # full, spends fees
 ```
 
 ## Functions

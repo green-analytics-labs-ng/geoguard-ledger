@@ -1,0 +1,114 @@
+name: Release
+
+# Tag-triggered. Pushing v0.2.0 publishes a release containing the contract WASM
+# and its SHA-256, so a deployment can be tied to an exact, downloadable artifact
+# instead of whatever the local working tree happened to build.
+#
+#   git tag -a v0.2.0 -m "GeoGuard Ledger v0.2.0"
+#   git push origin v0.2.0
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  release:
+    name: Publish release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # A release whose tag disagrees with the manifests ships an artifact
+      # nobody can map back to a version, so refuse to publish one.
+      - name: Check the tag matches the project versions
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME#v}"
+          CONTRACT=$(grep -m1 '^version = ' contracts/geoguard-ledger/Cargo.toml | cut -d'"' -f2)
+          BACKEND=$(grep -m1 '^version = ' backend/pyproject.toml | cut -d'"' -f2)
+          FRONTEND=$(jq -r .version frontend/package.json)
+
+          echo "tag=$TAG contract=$CONTRACT backend=$BACKEND frontend=$FRONTEND"
+
+          MISMATCH=""
+          [ "$CONTRACT" = "$TAG" ] || MISMATCH="$MISMATCH contracts/geoguard-ledger/Cargo.toml($CONTRACT)"
+          [ "$BACKEND" = "$TAG" ] || MISMATCH="$MISMATCH backend/pyproject.toml($BACKEND)"
+          [ "$FRONTEND" = "$TAG" ] || MISMATCH="$MISMATCH frontend/package.json($FRONTEND)"
+
+          if [ -n "$MISMATCH" ]; then
+            echo "::error::Tag v${TAG} does not match:$MISMATCH"
+            exit 1
+          fi
+          echo "All versions match tag v${TAG}"
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Cache Cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            contracts/geoguard-ledger/target
+          key: ${{ runner.os }}-cargo-release-${{ hashFiles('contracts/geoguard-ledger/Cargo.lock') }}
+
+      - name: Run contract tests
+        working-directory: contracts/geoguard-ledger
+        run: cargo test --verbose
+
+      - name: Build release WASM
+        working-directory: contracts/geoguard-ledger
+        run: cargo build --target wasm32-unknown-unknown --release
+
+      - name: Package the WASM
+        working-directory: contracts/geoguard-ledger
+        run: |
+          set -euo pipefail
+          SRC=target/wasm32-unknown-unknown/release/geoguard_ledger.wasm
+          OUT="$RUNNER_TEMP/release"
+          mkdir -p "$OUT"
+          cp "$SRC" "$OUT/geoguard_ledger.wasm"
+
+          SIZE=$(wc -c < "$OUT/geoguard_ledger.wasm")
+          SHA=$(sha256sum "$OUT/geoguard_ledger.wasm" | cut -d' ' -f1)
+
+          # Written in the format `sha256sum -c` consumes, so verifying a
+          # download is one command rather than a manual comparison.
+          printf '%s  geoguard_ledger.wasm\n' "$SHA" > "$OUT/geoguard_ledger.wasm.sha256"
+
+          {
+            echo "## Contract WASM"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Size | ${SIZE} bytes |"
+            echo "| SHA-256 | \`${SHA}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: geoguard_ledger-${{ github.ref_name }}.wasm
+          path: ${{ runner.temp }}/release/geoguard_ledger.wasm
+          if-no-files-found: error
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh release create "$GITHUB_REF_NAME" \
+            --title "$GITHUB_REF_NAME" \
+            --generate-notes \
+            "$RUNNER_TEMP/release/geoguard_ledger.wasm" \
+            "$RUNNER_TEMP/release/geoguard_ledger.wasm.sha256"

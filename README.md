@@ -247,13 +247,29 @@ docker compose up -d
 
 ### Deploy the Smart Contract to Testnet
 
+Deploying publishes a permanent contract instance, so it is an explicit act
+rather than something that happens on merge. From a local checkout:
+
 ```bash
-# See contracts/README.md for full deployment instructions
-soroban contract deploy \
-  --wasm target/wasm32-unknown-unknown/release/geoguard_ledger.wasm \
-  --source <YOUR_SECRET_KEY> \
-  --network testnet
+cd contracts/geoguard-ledger
+cargo build --target wasm32-unknown-unknown --release
+cd ../..
+DEPLOYER_SECRET=S... ./scripts/deploy_contract.sh --admin G... --write-env
 ```
+
+Or run the **Deploy to Testnet** workflow from the Actions tab: it re-runs the
+contract's gates, builds the WASM, deploys, and smoke tests the result.
+
+A deployment is only useful if it exposes what the backend calls, and a contract
+deployed before a feature existed keeps answering for the functions it has. Check
+any deployment (no key, no fees):
+
+```bash
+cd backend && CONTRACT_ID=C... uv run python -m tests.smoke_testnet --read-only
+```
+
+See [docs/deployment.md](docs/deployment.md) for the full runbook — secrets,
+initialization, releases, and what to do when a deployment has drifted.
 
 ### Keep Anchored Entries Alive
 
@@ -309,26 +325,28 @@ geoguard-ledger/
 │       └── Makefile            # Build, test, deploy targets
 │
 ├── backend/                    # FastAPI backend (Python)
-│   └── app/
-│       ├── main.py             # App factory, CORS, lifespan
-│       ├── config.py           # Environment-based configuration
-│       ├── api/v1/             # REST endpoints (datasets, batches, verify, health)
-│       ├── models/             # SQLAlchemy models + Pydantic schemas
-│       ├── services/           # Hasher, Merkle proofs, TTL renewal, AI detector, Soroban client
-│       ├── jobs/               # Scheduled jobs (TTL renewal)
-│       ├── db/                 # Async SQLAlchemy session management
-│       └── core/               # Security, custom exceptions
+│   ├── app/
+│   │   ├── main.py             # App factory, CORS, lifespan
+│   │   ├── config.py           # Environment-based configuration
+│   │   ├── api/v1/             # REST endpoints (datasets, batches, verify, health)
+│   │   ├── models/             # SQLAlchemy models + Pydantic schemas
+│   │   ├── services/           # Hasher, Merkle proofs, TTL renewal, AI detector, Soroban client
+│   │   ├── jobs/               # Scheduled jobs (TTL renewal)
+│   │   ├── db/                 # Async SQLAlchemy session management
+│   │   └── core/               # Security, custom exceptions
+│   └── tests/                  # Unit suites, plus smoke_testnet.py for live Testnet checks
 │
 ├── frontend/                   # React frontend (TypeScript + Tailwind)
-│   └── src/
-│       ├── pages/              # Dashboard, Upload, Verify, Settings
-│       ├── components/         # CsvDropzone, BatchAnchorFlow, MerkleProof, BatchBadge, AnomalyBadge
-│       ├── hooks/              # useWallet, useDatasets, useVerify
-│       ├── context/            # WalletContext (Freighter state)
-│       ├── tests/              # Vitest + React Testing Library tests
-│       └── api/                # Typed API client layer
+│   ├── src/
+│   │   ├── pages/              # Dashboard, Upload, Verify, Settings
+│   │   ├── components/         # CsvDropzone, BatchAnchorFlow, MerkleProof, BatchBadge, AnomalyBadge
+│   │   ├── hooks/              # useWallet, useDatasets, useVerify
+│   │   ├── context/            # WalletContext (Freighter state)
+│   │   └── api/                # Typed API client layer
+│   └── tests/                  # Vitest + React Testing Library tests
 │
-├── docs/                       # Architecture decisions, AI model guide
+├── docs/                       # Architecture, API reference, AI model, deployment runbook
+├── .github/workflows/          # ci.yml, contract-test.yml, deploy-testnet.yml, release.yml
 ├── scripts/                    # setup_dev.sh, deploy_contract.sh, seed_db.py
 ├── docker-compose.yml          # Multi-service orchestration
 ├── SPECIFICATION.md            # Full technical specification

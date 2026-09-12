@@ -1,0 +1,173 @@
+name: Deploy to Testnet
+
+# Manual only. Deploying publishes a new, permanent contract instance, so it
+# must never happen as a side effect of a push. Every run creates a NEW contract
+# ID; a later deployment does not replace an earlier one, and datasets anchored
+# against an old instance stay bound to it.
+#
+# Required configuration before the first run:
+#   - Secret TESTNET_DEPLOYER_SECRET: a funded Testnet secret key (S...). It pays
+#     for the deployment and (unless the smoke test is skipped) for the smoke
+#     test's anchoring and renewal transactions.
+#   - Either an environment named `testnet` holding that secret — which
+#     additionally lets you require reviewer approval under Settings →
+#     Environments — or the same name as a repository secret.
+#
+# To verify a deployment, use the contract ID this workflow reports in its job
+# summary: cd backend && CONTRACT_ID=C... uv run python -m tests.smoke_testnet --read-only
+
+on:
+  workflow_dispatch:
+    inputs:
+      admin_address:
+        description: "Admin public key (G...). If set, the contract is initialized with it. Leave empty to deploy uninitialized."
+        required: false
+        type: string
+      run_smoke_test:
+        description: "Run the Testnet smoke test against the new deployment."
+        required: true
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+# A deployment mutates the network, so runs must not overlap.
+concurrency:
+  group: deploy-testnet
+  cancel-in-progress: false
+
+env:
+  STELLAR_CLI_VERSION: "28.0.0"
+
+jobs:
+  deploy:
+    name: Deploy contract
+    runs-on: ubuntu-latest
+    # Environment-scoped secrets and, if configured, a required-reviewer gate.
+    environment: testnet
+    outputs:
+      contract_id: ${{ steps.deploy.outputs.contract_id }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Cache Cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            contracts/geoguard-ledger/target
+          key: ${{ runner.os }}-cargo-deploy-${{ hashFiles('contracts/geoguard-ledger/Cargo.lock') }}
+
+      # The deploy artifact is built here rather than reused from CI, so this
+      # job re-runs the same gates before publishing anything to the network.
+      - name: Lint and test the contract
+        working-directory: contracts/geoguard-ledger
+        run: |
+          cargo fmt --all -- --check
+          cargo clippy --target wasm32-unknown-unknown -- -D warnings
+          cargo test --verbose
+
+      - name: Build release WASM
+        working-directory: contracts/geoguard-ledger
+        run: cargo build --target wasm32-unknown-unknown --release
+
+      - name: Install stellar CLI ${{ env.STELLAR_CLI_VERSION }}
+        run: |
+          set -euo pipefail
+          URL="https://github.com/stellar/stellar-cli/releases/download/v${STELLAR_CLI_VERSION}/stellar-cli-${STELLAR_CLI_VERSION}-x86_64-unknown-linux-gnu.tar.gz"
+          curl -fsSL -o "$RUNNER_TEMP/stellar-cli.tar.gz" "$URL"
+          mkdir -p "$RUNNER_TEMP/stellar-cli"
+          tar -xzf "$RUNNER_TEMP/stellar-cli.tar.gz" -C "$RUNNER_TEMP/stellar-cli"
+          # -print -quit avoids `| head -n1`, which under `pipefail` can fail
+          # the step with SIGPIPE (exit 141) instead of succeeding.
+          BIN=$(find "$RUNNER_TEMP/stellar-cli" -type f -name stellar -print -quit)
+          test -n "$BIN"
+          sudo install -m 0755 "$BIN" /usr/local/bin/stellar
+          stellar --version
+
+      # Fail here with a clear message rather than deep inside the CLI's error
+      # output, which is what an unset secret otherwise looks like.
+      - name: Check the deployer secret is configured
+        env:
+          DEPLOYER_SECRET: ${{ secrets.TESTNET_DEPLOYER_SECRET }}
+        run: |
+          if [ -z "${DEPLOYER_SECRET}" ]; then
+            echo "::error::TESTNET_DEPLOYER_SECRET is not set. Add a funded Testnet secret key (S...) as an environment secret on the 'testnet' environment, or as a repository secret."
+            exit 1
+          fi
+
+      - name: Deploy
+        id: deploy
+        env:
+          DEPLOYER_SECRET: ${{ secrets.TESTNET_DEPLOYER_SECRET }}
+          ADMIN_ADDRESS: ${{ inputs.admin_address }}
+        run: |
+          set -euo pipefail
+          ARGS=(--contract-id-out "$RUNNER_TEMP/contract_id.txt")
+          if [ -n "$ADMIN_ADDRESS" ]; then
+            ARGS+=(--admin "$ADMIN_ADDRESS")
+          fi
+          ./scripts/deploy_contract.sh "${ARGS[@]}"
+          echo "contract_id=$(cat "$RUNNER_TEMP/contract_id.txt")" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Python
+        if: ${{ inputs.run_smoke_test }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        if: ${{ inputs.run_smoke_test }}
+        uses: astral-sh/setup-uv@v5
+
+      - name: Install backend dependencies
+        if: ${{ inputs.run_smoke_test }}
+        working-directory: backend
+        run: uv sync --no-dev
+
+      # The point of deploying is a contract that works, so the run fails if the
+      # deployment cannot anchor, prove inclusion, and renew. The deploy itself
+      # cannot be rolled back, which is why the summary below always runs.
+      - name: Smoke test the deployment
+        id: smoke
+        if: ${{ inputs.run_smoke_test }}
+        working-directory: backend
+        env:
+          CONTRACT_ID: ${{ steps.deploy.outputs.contract_id }}
+          SMOKE_TEST_SIGNER_SECRET: ${{ secrets.TESTNET_DEPLOYER_SECRET }}
+        run: uv run --no-dev python -m tests.smoke_testnet
+
+      - name: Deployment summary
+        if: always()
+        env:
+          SMOKE_OUTCOME: ${{ steps.smoke.outcome }}
+        run: |
+          CONTRACT_ID=""
+          if [ -f "$RUNNER_TEMP/contract_id.txt" ]; then
+            CONTRACT_ID=$(cat "$RUNNER_TEMP/contract_id.txt")
+          fi
+
+          {
+            echo "## Testnet deployment"
+            echo ""
+            if [ -n "$CONTRACT_ID" ]; then
+              echo "- **Contract ID:** \`$CONTRACT_ID\`"
+              echo "- **Explorer:** https://stellar.expert/explorer/testnet/contract/$CONTRACT_ID"
+            else
+              echo "- No contract was deployed — the deploy step did not complete."
+            fi
+            echo "- **Smoke test:** ${SMOKE_OUTCOME:-skipped}"
+            echo ""
+            echo "Re-check this deployment at any time without a key or fees:"
+            echo ""
+            echo '```bash'
+            echo "cd backend && CONTRACT_ID=$CONTRACT_ID uv run python -m tests.smoke_testnet --read-only"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

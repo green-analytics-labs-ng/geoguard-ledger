@@ -959,12 +959,33 @@ GitHub Actions workflows enforce quality gates on every PR and push to `main`:
 | **Frontend Lint & Typecheck** | `npm run lint`, `tsc --noEmit` |
 | **Frontend Test** | `npx vitest run` (Vitest) |
 
-**`contract-test.yml`** — Soroban-specific CI with WASM optimization:
+**`contract-test.yml`** — Soroban contract tests and release WASM build:
 | Job | Commands |
 |-----|----------|
 | **Build WASM** | `cargo build --target wasm32-unknown-unknown --release` |
 | **Run Unit Tests** | `cargo test` |
-| **Optimize WASM** | `soroban contract optimize` |
+| **Check WASM size** | `wc -c` on the release WASM (warns above 64 KB) |
+
+**`deploy-testnet.yml`** — Manual Testnet deployment (`workflow_dispatch`):
+| Step | Commands |
+|-----|----------|
+| **Gate** | `cargo fmt --check`, `cargo clippy -D warnings`, `cargo test` |
+| **Build** | `cargo build --target wasm32-unknown-unknown --release` |
+| **Deploy** | `scripts/deploy_contract.sh` against `testnet` |
+| **Smoke test** | `python -m tests.smoke_testnet` against the new contract ID |
+
+Each run publishes a new contract ID (a deployment is permanent and never
+replaces a previous instance) and reports it in the job summary. The smoke test
+runs against that deployment, so a green job means the deployed contract
+actually answered — not merely that a WASM upload succeeded.
+
+**`release.yml`** — Tag-triggered release:
+| Step | Commands |
+|-----|----------|
+| **Version guard** | tag must equal the version in `Cargo.toml`, `pyproject.toml`, and `package.json` |
+| **Test** | `cargo test` |
+| **Build** | `cargo build --target wasm32-unknown-unknown --release` |
+| **Publish** | attaches `geoguard_ledger.wasm` and its `sha256sum` file to the release |
 
 ### 9.2 Quality Gates
 
@@ -974,9 +995,21 @@ All of the following must pass before a PR can be merged:
 - At least one approving review from a maintainer.
 - All conversations on the PR are resolved.
 
-### 9.3 Deployment Pipeline (Future)
+### 9.3 Deployment Pipeline
 
-- **Staging:** Automatic deployment to Testnet on merge to `main`.
+Deployment is manual by design: it publishes a permanent contract instance, so
+it is an explicit act rather than a side effect of merging.
+
+- **Testnet:** the `Deploy to Testnet` workflow, gated behind the `testnet`
+  GitHub environment (where a required reviewer can be configured) and a funded
+  `TESTNET_DEPLOYER_SECRET`. It deploys, then smoke tests the contract it just
+  published, and reports the contract ID in its job summary.
+- **Releases:** pushing a `v*` tag publishes the built WASM and its SHA-256, so a
+  deployment can be tied to an exact artifact rather than a local build.
+- **Drift detection:** `cd backend && python -m tests.smoke_testnet --read-only`
+  verifies that a deployed contract still exposes the entry points the backend
+  calls. It needs no key and spends no fees, so it can be run on demand or on a
+  schedule.
 - **Production:** Manual trigger for Mainnet deployment after audit sign-off.
 - **Contract Upgrades:** Require multi-sig governance and a timelock period.
 
