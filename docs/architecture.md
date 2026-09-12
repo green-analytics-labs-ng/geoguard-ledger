@@ -31,7 +31,7 @@ This document captures key architectural decisions and the rationale behind them
 ## 5. Why Merkle Batching?
 
 - **Cost scales with batches, not datasets.** Each on-chain `Record` is a Persistent ledger entry with its own rent. Anchoring a Merkle root stores one `RootRecord` for arbitrarily many datasets, so cost and rent stop growing with submission volume.
-- **TTL renewal becomes tractable.** Roots expire like any Persistent entry, but renewing one root keeps an entire batch queryable instead of chasing thousands of records.
+- **TTL renewal becomes tractable.** Roots expire like any Persistent entry, but renewing one root keeps an entire batch queryable instead of chasing thousands of records. `app/jobs/renew_root_ttl.py` renews roots as they enter their renewal window, so archiving never gets the chance to silently break verification. It runs on an external scheduler rather than in the API process, so extra replicas do not each run it — and because the call is permissionless and idempotent, overlapping runs never extend a root twice.
 - **Verification stays independent.** An inclusion proof is checked by the contract itself (`verify_inclusion`), so a verifier does not need to trust the backend that produced the proof. The tree layout is published and implemented identically on-chain and off-chain.
 - **Domain separation.** Leaves are `SHA256(0x00 || dataset_hash)` and interior nodes `SHA256(0x01 || left || right)`, so a dataset hash can never be reinterpreted as an interior node.
 

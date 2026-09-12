@@ -126,3 +126,49 @@ confirmed.
 `inclusion` is `null` for datasets anchored individually. `verified_locally`
 re-checks the proof in the backend; `verified_on_chain` is the contract's own
 `verify_inclusion` verdict, or `null` when it could not be evaluated.
+
+## Maintenance
+
+### `GET /api/v1/maintenance/ttl-status`
+
+Reports how much life the anchored Merkle roots have left. Roots are Persistent
+ledger entries, so if renewal stops working they are eventually archived and
+verification silently stops answering for every dataset in those batches — this
+endpoint is how that shows up as a number instead.
+
+```json
+{
+  "enabled": true,
+  "signer_configured": true,
+  "renewal_window_days": 30,
+  "root_lifetime_days": 180.0,
+  "anchored_roots": 12,
+  "roots_without_recorded_expiry": 0,
+  "roots_due_for_renewal": 2,
+  "roots_past_recorded_expiry": 0,
+  "roots_with_renewal_error": 0,
+  "next_expiry_at": "2026-10-02T11:15:00+00:00",
+  "last_renewed_at": "2026-09-01T03:00:12+00:00"
+}
+```
+
+Alert on `roots_past_recorded_expiry` above zero, or on
+`roots_with_renewal_error` growing: either means the renewal job has stopped
+keeping up.
+
+Note that expiry is the deadline **recorded** when a root was anchored or
+renewed, derived from the contract's TTL budgets — it is not read back from the
+ledger. Treat it as a drift detector: if the contract's budgets change, these
+deadlines go stale and say so here rather than failing silently.
+
+Renewal itself is a scheduled command, not an endpoint:
+
+```bash
+cd backend
+python -m app.jobs.renew_root_ttl --dry-run   # list what would be renewed
+python -m app.jobs.renew_root_ttl             # renew for real
+```
+
+It exits `0` on a clean run, `1` when any renewal failed (the failure is also
+recorded on the batch), and `2` when the job is disabled or has no signing
+account configured.

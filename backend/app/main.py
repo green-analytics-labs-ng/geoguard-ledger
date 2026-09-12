@@ -7,7 +7,7 @@ from logging import getLogger
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.v1 import batches, datasets, health, verify
+from app.api.v1 import batches, datasets, health, maintenance, verify
 from app.config import settings
 from app.core.exceptions import register_exception_handlers
 from app.db.base import Base
@@ -52,6 +52,7 @@ def create_app() -> FastAPI:
     app.include_router(datasets.router, prefix="/api/v1", tags=["datasets"])
     app.include_router(batches.router, prefix="/api/v1", tags=["batches"])
     app.include_router(verify.router, prefix="/api/v1", tags=["verify"])
+    app.include_router(maintenance.router, prefix="/api/v1", tags=["maintenance"])
 
     register_exception_handlers(app)
 

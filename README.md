@@ -50,6 +50,7 @@ Environmental policy, public health interventions, and climate adaptation strate
 
 - **Immutable On-Chain Records** — Dataset hashes, anomaly scores, model versions, timestamps, and submitter identities are permanently stored on the Stellar blockchain via Soroban smart contracts written in Rust.
 - **Merkle Batch Anchoring** — Datasets can be committed under a single Merkle root, collapsing O(n) on-chain entries (and their rent obligations) into O(1). Each dataset keeps an inclusion proof that any third party can verify against the anchored root with the contract's `verify_inclusion()`, and renewing one root keeps an entire batch alive.
+- **Automated TTL Renewal** — An anchored root is a Persistent ledger entry, so Soroban archives it once its rent runs out and every dataset in that batch stops verifying. A scheduled job renews roots before that happens, and `GET /api/v1/maintenance/ttl-status` reports the backlog, so a stalled renewal is visible instead of silent.
 - **Permissionless Verification** — Any third party — journal editor, regulator, fellow researcher — can verify a dataset's authenticity by calling the contract's `verify_integrity()` read-only function without gas costs or special permissions.
 
 ### 🔐 Privacy-Preserving Architecture
@@ -254,6 +255,34 @@ soroban contract deploy \
   --network testnet
 ```
 
+### Keep Anchored Roots Alive
+
+Anchored roots expire. They are Persistent ledger entries with a finite TTL
+(~180 days from anchoring), and once one is archived every dataset in that batch
+stops verifying. Renewing roots is what keeps the ledger's promise true, and it is
+the one job that spends real fees — so it is off until you arm it:
+
+```bash
+cd backend
+export TTL_RENEWAL_ENABLED=true
+export TTL_RENEWAL_SIGNER_SECRET=<funded operational account secret>
+
+python -m app.jobs.renew_root_ttl --dry-run   # list what would be renewed
+python -m app.jobs.renew_root_ttl             # renew for real
+```
+
+Run it on a schedule — cron, a systemd timer, or a Kubernetes CronJob. It is safe
+to run repeatedly: renewing a root records a new deadline that moves it out of
+the window, so the next run skips it. Two overlapping runs may both attempt the
+same root — the contract treats the second as a no-op, so nothing is extended
+twice, though that attempt still pays a transaction fee. It exits non-zero when a
+renewal fails, and records the failure on the batch, so your scheduler can alert.
+
+The renewal account only ever pushes an expiry out — it cannot alter, forge, or
+delete a record. It is deliberately not the researcher's key: unlike anchoring,
+renewal is a state-changing call, so the backend signs it with this dedicated
+"rent payer" account.
+
 ---
 
 ## Project Structure
@@ -277,7 +306,8 @@ geoguard-ledger/
 │       ├── config.py           # Environment-based configuration
 │       ├── api/v1/             # REST endpoints (datasets, batches, verify, health)
 │       ├── models/             # SQLAlchemy models + Pydantic schemas
-│       ├── services/           # Hasher, Merkle proofs, AI anomaly detector, Soroban client
+│       ├── services/           # Hasher, Merkle proofs, TTL renewal, AI detector, Soroban client
+│       ├── jobs/               # Scheduled jobs (root TTL renewal)
 │       ├── db/                 # Async SQLAlchemy session management
 │       └── core/               # Security, custom exceptions
 │

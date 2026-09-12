@@ -243,6 +243,69 @@ async def build_anchor_root_transaction(
     )
 
 
+# ── Root TTL Renewal (operational signer) ────────────────────────
+
+
+def _renewal_signer() -> Keypair:
+    """Load the operational account that pays root TTL renewal fees.
+
+    Renewal is a state-changing call, so unlike anchoring it cannot be handed
+    to the researcher to sign — the backend signs it itself. This is therefore
+    the one place the service holds a secret key, and it is never logged.
+
+    Raises:
+        ValueError: If no renewal signer is configured.
+    """
+    if not settings.ttl_renewal_signer_secret:
+        raise ValueError("TTL_RENEWAL_SIGNER_SECRET not configured — cannot renew root TTL")
+    return Keypair.from_secret(settings.ttl_renewal_signer_secret)
+
+
+async def renew_root_ttl_on_chain(
+    merkle_root: str,
+    extend_to_ledgers: int,
+) -> dict[str, Any]:
+    """Extend an anchored Merkle root's TTL, signed by the operational account.
+
+    ``extend_root_ttl`` is permissionless and can only push an entry's expiry
+    out, so this account can never alter or forge a record — it only pays rent.
+    A call against a root that is still well covered is a no-op on-chain.
+
+    Args:
+        merkle_root: Hex Merkle root whose persistent entry should be renewed.
+        extend_to_ledgers: Ledger count to extend that entry to.
+
+    Returns:
+        Dict with ``tx_hash`` (str) and ``ledger`` (int).
+
+    Raises:
+        ValueError: If the contract ID or the renewal signer is not configured.
+        RuntimeError: If simulation or submission fails.
+    """
+    signer = _renewal_signer()
+
+    invoke_args = [
+        scval.to_bytes(_hex_to_bytes(merkle_root)),  # BytesN<32>
+        scval.to_uint32(extend_to_ledgers),  # u32
+    ]
+
+    # Build and simulate with the payer as source: it pays the fee, so it has to
+    # exist and be funded on-chain.
+    unsigned_xdr = await _build_and_prepare_unsigned(
+        signer.public_key,
+        "extend_root_ttl",
+        invoke_args,
+        log_context=f"root={merkle_root[:12]} extend_to={extend_to_ledgers}",
+    )
+
+    # Sign only after prepare_transaction, which bakes in the resource footprint
+    # and fee and so changes the transaction hash that gets signed.
+    envelope = TransactionEnvelope.from_xdr(unsigned_xdr, settings.soroban_network_passphrase)
+    envelope.sign(signer)
+
+    return await submit_transaction(envelope.to_xdr())
+
+
 # ── Transaction Submission ────────────────────────────────────────
 
 

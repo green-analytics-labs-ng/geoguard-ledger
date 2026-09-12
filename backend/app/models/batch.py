@@ -83,3 +83,33 @@ class Batch(Base):
         DateTime(timezone=True),
         nullable=True,
     )
+
+    # TTL renewal bookkeeping
+    root_ttl_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        index=True,
+        comment="When the on-chain root entry expires unless renewed",
+    )
+    last_ttl_renewed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="Last successful root TTL renewal",
+    )
+    ttl_renewal_tx_hash: Mapped[str | None] = mapped_column(
+        String(64),
+        nullable=True,
+        comment="Transaction hash of the most recent successful renewal",
+    )
+    ttl_renewal_attempts: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=0,
+        server_default="0",
+        comment="Renewal attempts, so a root failing repeatedly is visible",
+    )
+    ttl_renewal_error: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+        comment="Last renewal error, cleared on success",
+    )

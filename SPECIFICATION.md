@@ -596,6 +596,15 @@ the RPC is reachable and healthy, `{"status": "ok", "soroban_rpc":
 `"ok"` while a dependency is down. The probe timeout is configurable via
 `SOROBAN_RPC_HEALTH_TIMEOUT_SECONDS`.
 
+#### `GET /api/v1/maintenance/ttl-status`
+Reports how much life the anchored Merkle roots have left. An anchored root is a
+Persistent ledger entry, so if renewal stops working the entries are eventually
+archived and verification silently stops answering — this endpoint is how that
+shows up as a metric instead. Returns the anchored root count, how many are due
+for renewal, how many are already past their recorded expiry, how many are
+failing to renew, the next deadline, and the configured window and lifetime.
+Kept out of `/health` so liveness probes do not pay for a database aggregate.
+
 ### 5.3 Authentication & Authorization
 
 **Phase 1 (Current):** The API is open. `researcher_id` is derived from the submitter's Stellar public key embedded in the signed transaction XDR. No additional API authentication is required during the pilot — trust is established cryptographically via the wallet signature on the transaction itself.
@@ -718,19 +727,26 @@ geoguard-ledger/
 │   │   │   ├── __init__.py
 │   │   │   ├── v1/
 │   │   │   │   ├── __init__.py
-│   │   │   │   ├── datasets.py # Dataset endpoints
-│   │   │   │   ├── verify.py   # Verification endpoints
-│   │   │   │   └── health.py   # Health check
+│   │   │   │   ├── datasets.py    # Dataset endpoints
+│   │   │   │   ├── batches.py     # Merkle batch endpoints
+│   │   │   │   ├── verify.py      # Verification endpoints
+│   │   │   │   ├── maintenance.py # TTL renewal status
+│   │   │   │   └── health.py      # Health check
 │   │   ├── models/
 │   │   │   ├── __init__.py
 │   │   │   ├── dataset.py      # SQLAlchemy model
-│   │   │   └── schemas.py      # Pydantic request/response schemas
+│   │   │   └── batch.py        # Merkle batch model (incl. TTL deadlines)
 │   │   ├── services/
 │   │   │   ├── __init__.py
 │   │   │   ├── hasher.py       # SHA-256 hashing + canonicalization
 │   │   │   ├── anomaly.py      # AI anomaly detection service
+│   │   │   ├── merkle.py       # Merkle tree construction + inclusion proofs
+│   │   │   ├── ttl_renewal.py  # Root expiry math + renewal orchestration
 │   │   │   ├── soroban.py      # Soroban RPC client, tx building
 │   │   │   └── storage.py      # IPFS integration (Phase 3)
+│   │   ├── jobs/
+│   │   │   ├── __init__.py
+│   │   │   └── renew_root_ttl.py  # Scheduled root TTL renewal job
 │   │   ├── db/
 │   │   │   ├── __init__.py
 │   │   │   ├── session.py      # Async SQLAlchemy session
@@ -744,6 +760,8 @@ geoguard-ledger/
 │   │   ├── test_datasets.py
 │   │   ├── test_batches.py
 │   │   ├── test_merkle.py
+│   │   ├── test_ttl_renewal.py
+│   │   ├── test_maintenance.py
 │   │   ├── test_verify.py
 │   │   └── fixtures/
 │   │       └── sample.csv
@@ -988,6 +1006,16 @@ A `/metrics` endpoint (Prometheus-compatible, planned) exposes:
 | `geoguard_soroban_rpc_latency_seconds` | Histogram | Soroban RPC response latency. |
 | `geoguard_ttl_records_expiring_soon` | Gauge | Number of anchor records with TTL < 30 days remaining. |
 
+**Available today:** the root-expiry gauges are exposed in JSON form at
+`GET /api/v1/maintenance/ttl-status` — `roots_due_for_renewal`,
+`roots_past_recorded_expiry`, `roots_with_renewal_error` and `next_expiry_at`.
+Prometheus exposition of the full table above is still planned.
+
+**Alert on `roots_past_recorded_expiry` above zero and on
+`roots_with_renewal_error` growing:** either means the renewal job has stopped
+keeping up, and the failure is otherwise invisible until someone tries to verify
+a dataset that was anchored in an affected batch.
+
 ### 10.3 Alerting
 
 **Critical alerts (Phase 3+):**
@@ -1131,15 +1159,17 @@ chore(ci): add Soroban contract test workflow
 | Batch persistence | `batches` table plus `batch_id`, `merkle_root`, `leaf_index`, `merkle_proof` on `datasets`. | ✅ |
 | Tests | Contract (Merkle), Merkle-service, batch-API, and frontend suites. | ✅ |
 | Frontend batching | `BatchAnchorFlow` builds and anchors a batch from the upload page; `MerkleProof` displays the root and inclusion proof on the upload and verify pages; `/verify` accepts a linked `dataset_hash`; the dataset list and detail pages surface batch membership via `BatchBadge` and the stored proof path. | ✅ |
+| Root TTL renewal | `app/services/ttl_renewal.py` selects anchored roots entering their renewal window and renews them through the operational account; `app/jobs/renew_root_ttl.py` runs one pass on a schedule; `GET /api/v1/maintenance/ttl-status` reports the backlog. | ✅ |
 
 **Remaining Work (Phase 5):**
-- TTL renewal scheduler for roots (the batch entry that actually needs renewing).
+- Renewal deadlines come from the contract's TTL budgets *as recorded in the database*, not from the ledger. Reading each entry's `liveUntilLedgerSeq` would remove that assumption entirely.
+- Individually anchored datasets still hold their own Persistent entries (`Record(hash)`), which this job does not renew.
 - Batch listing and management UI — the API is ready and dataset pages now show membership, but there is no batch index or management page.
 
 ### Post-Launch
 
 - **IPFS/Arweave integration** for decentralized raw data storage.
-- **TTL Renewal Automation:** A backend scheduler (Celery Beat) that proactively calls `extend_root_ttl()` on roots approaching expiry, acting as an automated rent payer so researchers never lose query access to their proofs. Batch roots make this tractable: one renewal keeps an entire batch alive.
+- **TTL Renewal Automation — delivered:** `app/jobs/renew_root_ttl.py` proactively calls `extend_root_ttl()` on roots approaching expiry, acting as an automated rent payer so researchers never lose query access to their proofs. It is a scheduled command rather than an in-process task, so multiple API replicas do not each run it; the call is permissionless and idempotent, so overlapping runs are harmless. Batch roots are what make this tractable: one renewal keeps an entire batch alive.
 - **Batch-aware frontend:** Surface batch creation and Merkle proof display in the upload and verification UIs.
 - **Researcher reputation system** (on-chain scores based on anomaly-free submissions).
 - **Multi-model support** (pluggable AI backends).
