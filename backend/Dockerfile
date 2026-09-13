@@ -12,11 +12,16 @@ WORKDIR /app
 
 RUN pip install --no-cache-dir uv
 
-COPY pyproject.toml uv.lock ./
+COPY pyproject.toml uv.lock README.md ./
 
-RUN uv sync --frozen
+# Dependencies first, with the project itself held back: this layer stays
+# cached while application code changes. The project is installed below, once
+# its source is on disk — building it needs `app/` and README.md present.
+RUN uv sync --frozen --no-install-project
 
 COPY . .
+
+RUN uv sync --frozen
 
 EXPOSE 8000
 

@@ -1,0 +1,16 @@
+# The virtualenv is rebuilt inside the image. Copying the host's would clobber
+# it with one built for a different interpreter.
+.venv/
+venv/
+
+# Local configuration and secrets must not be baked into an image layer.
+.env
+
+# Build and test detritus.
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
