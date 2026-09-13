@@ -1,22 +1,10 @@
-import { defineConfig } from "vite";
+// `vitest/config` re-exports Vite's `defineConfig` with the `test` field typed.
+// Vitest and the app share a single Vite install, so the plugin types line up.
+import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 import path from "path";
 
-// Vitest reads this block out of the Vite config. It is declared locally
-// because Vitest 2 bundles its own Vite 5, so `vitest/config` and the
-// `vitest/config` type reference resolve `vite` to that nested copy rather
-// than the Vite 6 this project builds with — pulling either in makes the
-// plugin types mutually incompatible.
-interface VitestOptions {
-  globals: boolean;
-  environment: string;
-  setupFiles: string[];
-}
-
-// Kept in a `const` rather than inline: `vite`'s `defineConfig` has no `test`
-// field, and passing an object literal directly would be rejected as having
-// excess properties.
-const config = {
+export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
@@ -37,7 +25,5 @@ const config = {
     globals: true,
     environment: "jsdom",
     setupFiles: [],
-  } satisfies VitestOptions,
-};
-
-export default defineConfig(config);
+  },
+});
