@@ -293,6 +293,9 @@ impl GeoGuardLedger {
 mod test;
 
 #[cfg(test)]
+mod test_gas;
+
+#[cfg(test)]
 mod test_properties;
 
 #[cfg(test)]
