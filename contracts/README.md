@@ -32,6 +32,22 @@ cargo fmt --all -- --check
 cargo clippy --target wasm32-unknown-unknown -- -D warnings
 ```
 
+## Security & Cost
+
+The suite is more than the unit tests: the proof and TTL invariants are covered
+by property-based tests, and the operations whose cost scales with batch size
+have CPU ceilings that fail CI on regression.
+
+```bash
+cargo test                       # unit + property + gas tests
+PROPTEST_CASES=2000 cargo test test_properties   # heavier fuzz campaign
+```
+
+- [`docs/contract_security.md`](../docs/contract_security.md) — what the
+  properties assert, the hardening changes they drove, and the coverage limits.
+- [`docs/gas_audit.md`](../docs/gas_audit.md) — measured cost and WASM size, the
+  regression ceilings, and why the release profile was left alone.
+
 ## Deploy to Testnet
 
 Use the repository script rather than invoking the CLI by hand: it validates the
