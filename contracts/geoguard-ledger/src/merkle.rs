@@ -23,17 +23,21 @@ const NODE_PREFIX: u8 = 0x01;
 
 /// Hash a dataset hash into a Merkle leaf.
 pub fn hash_leaf(env: &Env, dataset_hash: &BytesN<32>) -> BytesN<32> {
-    let mut payload = Bytes::new(env);
-    payload.push_back(LEAF_PREFIX);
-    payload.append(&Bytes::from_array(env, &dataset_hash.to_array()));
-    env.crypto().sha256(&payload).to_bytes()
+    let mut payload = [0u8; 33];
+    payload[0] = LEAF_PREFIX;
+    payload[1..].copy_from_slice(&dataset_hash.to_array());
+    env.crypto()
+        .sha256(&Bytes::from_array(env, &payload))
+        .to_bytes()
 }
 
 /// Hash two child nodes into their parent.
 pub fn hash_node(env: &Env, left: &BytesN<32>, right: &BytesN<32>) -> BytesN<32> {
-    let mut payload = Bytes::new(env);
-    payload.push_back(NODE_PREFIX);
-    payload.append(&Bytes::from_array(env, &left.to_array()));
-    payload.append(&Bytes::from_array(env, &right.to_array()));
-    env.crypto().sha256(&payload).to_bytes()
+    let mut payload = [0u8; 65];
+    payload[0] = NODE_PREFIX;
+    payload[1..33].copy_from_slice(&left.to_array());
+    payload[33..].copy_from_slice(&right.to_array());
+    env.crypto()
+        .sha256(&Bytes::from_array(env, &payload))
+        .to_bytes()
 }
