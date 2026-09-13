@@ -132,6 +132,13 @@ jobs:
       - name: Run tests
         run: npm run test -- --run
 
+      # `npm run build` runs `tsc -b`, which is the only thing that type-checks
+      # vite.config.ts and the tsconfig.node.json project — the `typecheck`
+      # script above only covers `src`. Keeping the build in CI is what stops a
+      # broken build config from reaching main unnoticed.
+      - name: Production build
+        run: npm run build
+
   all-pass:
     name: All Checks Pass
     needs: [contract-lint-test, backend-lint-test, frontend-lint-test]
