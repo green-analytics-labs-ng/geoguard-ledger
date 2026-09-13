@@ -137,6 +137,81 @@ set up for a manual deploy or the renewal job needs nothing extra.
 | `Soroban RPC reachable` fails | Network or `SOROBAN_RPC_URL` problem, not a contract problem. |
 | `verify_inclusion rejects a wrong index` fails | Serious: the contract accepted a proof for a leaf position that should not verify. Investigate before trusting any batch. |
 
+## Scheduling the TTL renewal job
+
+Anchors are Persistent ledger entries, so they are archived once their TTL
+lapses and verification stops answering for whatever they covered. The renewal
+job is the rent payer that keeps them alive; run it on a schedule tighter than
+`TTL_RENEWAL_WINDOW_DAYS` (30 by default).
+
+Installing the backend installs a console script for it, so a scheduler can call
+it by name instead of by module path:
+
+```bash
+uv sync                    # creates .venv/bin/geoguard-renew-ttl
+uv run geoguard-renew-ttl --dry-run    # list what would be renewed, spends nothing
+```
+
+`geoguard-renew-ttl` and `python -m app.jobs.renew_ttl` run the same entry point
+and accept the same `--dry-run` and `--limit` flags.
+
+It needs `CONTRACT_ID`, `DATABASE_URL`, `TTL_RENEWAL_ENABLED=true`, and
+`TTL_RENEWAL_SIGNER_SECRET` — see [Secrets](#secrets) for what that key can do
+(it can only spend fees, never alter a record). Use the venv's absolute path:
+the script's shebang points at the venv interpreter, so no activation is needed,
+which suits schedulers that start with a minimal environment.
+
+### cron
+
+```cron
+# Daily at 03:00. Cron's PATH is minimal, hence absolute paths throughout.
+0 3 * * * cd /opt/geoguard/backend && ./.venv/bin/geoguard-renew-ttl >> /var/log/geoguard-ttl.log 2>&1
+```
+
+### systemd
+
+```ini
+# /etc/systemd/system/geoguard-renew-ttl.service
+[Unit]
+Description=Renew GeoGuard Ledger Soroban TTLs
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/geoguard/backend
+EnvironmentFile=/etc/geoguard/backend.env
+ExecStart=/opt/geoguard/backend/.venv/bin/geoguard-renew-ttl
+```
+
+```ini
+# /etc/systemd/system/geoguard-renew-ttl.timer
+[Unit]
+Description=Daily GeoGuard Ledger TTL renewal
+
+[Timer]
+OnCalendar=daily
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+```
+
+```bash
+systemctl enable --now geoguard-renew-ttl.timer
+```
+
+### Alerting on failure
+
+The exit code is the signal to alert on:
+
+| Code | Meaning |
+|---|---|
+| `0` | Ran cleanly, including "nothing was due". |
+| `1` | At least one renewal failed. The error is recorded on the entry's row, and the next run retries it. |
+| `2` | Not configured — the job is disabled or has no signing key. Nothing was renewed, so treat this as urgent: the entries are drifting toward archival. |
+
+Because the job is safe to re-run (a successful renewal moves the deadline out of
+the window), a retry is always the first response to a `1`.
+
 ## Releases
 
 Pushing a `v*` tag publishes a GitHub release containing the built WASM and its
@@ -192,7 +267,7 @@ to the smoke test within a single run.
 | `DEPLOYER_SECRET` | `scripts/deploy_contract.sh`, dev smoke scripts | Pays fees. A deployment it makes is permanent, so treat the key as privileged. |
 | `TESTNET_DEPLOYER_SECRET` | `deploy-testnet.yml` | Same as above, in CI. |
 | `SMOKE_TEST_SIGNER_SECRET` | `tests/smoke_testnet.py` | Anchors throwaway hashes and renews entries. Cannot alter or delete an existing record. |
-| `TTL_RENEWAL_SIGNER_SECRET` | `app/jobs/renew_ttl.py` | The operational "rent payer". `extend_ttl` and `extend_root_ttl` are permissionless and can only push an expiry *out*, so this key cannot forge, alter, or delete a record — it only spends fees. |
+| `TTL_RENEWAL_SIGNER_SECRET` | `geoguard-renew-ttl` (or `python -m app.jobs.renew_ttl`) | The operational "rent payer". `extend_ttl` and `extend_root_ttl` are permissionless and can only push an expiry *out*, so this key cannot forge, alter, or delete a record — it only spends fees. |
 
 No researcher's key ever reaches the backend: anchoring is signed client-side in
 the wallet. Never commit any of these; if one lands in git history, rotate it
