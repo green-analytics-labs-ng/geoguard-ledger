@@ -23,7 +23,7 @@ jobs:
     name: Publish release
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # A release whose tag disagrees with the manifests ships an artifact
       # nobody can map back to a version, so refuse to publish one.
@@ -54,7 +54,7 @@ jobs:
           targets: wasm32-unknown-unknown
 
       - name: Cache Cargo registry
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             ~/.cargo/registry
@@ -96,7 +96,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload build artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: geoguard_ledger-${{ github.ref_name }}.wasm
           path: ${{ runner.temp }}/release/geoguard_ledger.wasm
