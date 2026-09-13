@@ -227,7 +227,6 @@ impl GeoGuardLedger {
         if !storage::has_root(&env, &merkle_root) {
             return false;
         }
-
         let mut node = merkle::hash_leaf(&env, &dataset_hash);
         let mut idx = index;
 
@@ -280,3 +279,9 @@ impl GeoGuardLedger {
 
 #[cfg(test)]
 mod test;
+
+#[cfg(test)]
+mod test_properties;
+
+#[cfg(test)]
+mod test_support;
