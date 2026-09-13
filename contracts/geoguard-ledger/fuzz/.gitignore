@@ -1,0 +1,9 @@
+# Build output, generated corpora and crash artifacts are all local.
+target
+corpus
+artifacts
+coverage
+
+# The harness disables snapshot capture, but running the contract's own unit
+# tests through this package (it compiles ../src/lib.rs) writes them here.
+test_snapshots

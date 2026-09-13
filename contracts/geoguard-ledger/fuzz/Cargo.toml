@@ -1,0 +1,66 @@
+[package]
+name = "geoguard-ledger-fuzz"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+# `cfg(fuzzing)` is set by cargo-fuzz, not by Cargo, so rustc needs telling that
+# it is a real configuration rather than a typo.
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(fuzzing)"] }
+
+# Why this points at the contract's own source instead of a path dependency:
+#
+# The contract ships as a `cdylib`, which cannot be linked against. The obvious
+# fix — adding `rlib` to the contract's `[lib] crate-type` — has a real cost:
+# rustc must then preserve the crate's whole `pub` surface, so the deployed wasm
+# grows from 11,942 to 25,621 bytes (the code section alone goes from 5,611 to
+# 17,755). There is no Cargo flag that keeps both outputs small.
+#
+# Compiling the same file from here as an rlib leaves the contract's manifest,
+# and therefore the deployed artifact, completely untouched — while still
+# exercising the real entry point rather than a reimplementation of it.
+#
+# Cost of the approach: the dependency list below mirrors the contract's, and
+# `../src/lib.rs` pulls in its `#[cfg(test)]` modules when built in test mode.
+# If the contract gains a dependency, add it here too.
+[lib]
+name = "geoguard_ledger"
+path = "../src/lib.rs"
+crate-type = ["rlib"]
+
+[dependencies]
+soroban-sdk = { version = "22.0", features = ["testutils"] }
+sha2 = "0.10"
+
+# `../src/lib.rs` brings `mod test_properties`, which uses `proptest`.
+[dev-dependencies]
+proptest = "1.5"
+
+# Only present when cargo-fuzz builds, which sets `--cfg fuzzing`. That keeps
+# `cargo build` and `cargo test` working on stable for anyone who just wants to
+# run the harness (see `tests/harness.rs`).
+[target.'cfg(fuzzing)'.dependencies]
+libfuzzer-sys = "0.4"
+
+[patch.crates-io]
+ed25519-dalek = { git = "https://github.com/dalek-cryptography/curve25519-dalek.git", tag = "ed25519-2.2.0" }
+
+[[bin]]
+name = "verify-inclusion"
+path = "fuzz_targets/verify-inclusion.rs"
+test = false
+doc = false
+bench = false
+
+[[test]]
+name = "harness"
+path = "tests/harness.rs"
+
+[profile.release]
+# Line numbers and symbols in crash reports; libFuzzer is much harder to act on
+# without them. The contract has its own profile and is unaffected by this.
+debug = 1

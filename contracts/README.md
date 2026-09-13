@@ -35,16 +35,23 @@ cargo clippy --target wasm32-unknown-unknown -- -D warnings
 ## Security & Cost
 
 The suite is more than the unit tests: the proof and TTL invariants are covered
-by property-based tests, and the operations whose cost scales with batch size
-have CPU ceilings that fail CI on regression.
+by property-based tests, `fuzz/` drives the real verifier under libFuzzer against
+an independently written reference, and the operations whose cost scales with
+batch size have CPU ceilings that fail CI on regression.
 
 ```bash
-cargo test                       # unit + property + gas tests
-PROPTEST_CASES=2000 cargo test test_properties   # heavier fuzz campaign
+cargo test                                       # unit + property + gas tests
+PROPTEST_CASES=2000 cargo test test_properties   # heavier property campaign
+
+# Coverage-guided fuzzing. Needs `rustup toolchain install nightly` and
+# `cargo install cargo-fuzz`; the harness itself runs on stable.
+cargo test --manifest-path fuzz/Cargo.toml --test harness
+cargo +nightly fuzz run verify-inclusion
 ```
 
 - [`docs/contract_security.md`](../docs/contract_security.md) — what the
-  properties assert, the hardening changes they drove, and the coverage limits.
+  properties assert, what the fuzz target checks, the hardening changes they
+  drove, and the coverage limits.
 - [`docs/gas_audit.md`](../docs/gas_audit.md) — measured cost and WASM size, the
   regression ceilings, and why the release profile was left alone.
 

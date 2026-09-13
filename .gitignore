@@ -1,6 +1,10 @@
 # Rust / Soroban
 contracts/**/target/
 contracts/**/Cargo.lock
+# The fuzz crate compiles the contract's own src/lib.rs, so its lock is
+# committed too: it has to resolve the same soroban-sdk as the contract, or the
+# fuzzer would be exercising a different SDK than the one that ships.
+!contracts/geoguard-ledger/fuzz/Cargo.lock
 
 # Python
 __pycache__/

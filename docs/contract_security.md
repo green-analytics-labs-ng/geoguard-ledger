@@ -13,11 +13,17 @@ Gas cost is a separate concern — see [gas_audit.md](./gas_audit.md).
 | Unit tests | `src/test.rs` | Specific inputs and error codes. 29 tests. |
 | Property tests | `src/test_properties.rs` | Invariants over generated inputs. 7 properties. |
 | Gas regression | `src/test_gas.rs` | CPU/memory ceilings for cost-scaling operations. |
+| Coverage-guided fuzz | `fuzz/` | `verify_inclusion` checked against an independent `sha2` reference over libFuzzer-explored inputs. |
 | Deployed-contract smoke | `backend/tests/smoke_testnet.py` | Entry points exist on a *deployed* instance. |
 
 Unit tests catch a regression you thought to write down. The property tests
 exist for the cases you did not: odd tree shapes, an empty proof, a proof whose
 length is nonsense, an index at the far end of `u32`.
+
+The fuzz target covers the same verifier as the property tests but searches for
+failing inputs using coverage feedback instead of a fixed generator, and checks
+against a separately written reference rather than a fixed set of assertions.
+See [The fuzz target](#the-fuzz-target).
 
 > `test.rs` keeps the SDK's default of writing a JSON snapshot per test on drop.
 > The property and gas modules call `test_support::quiet_env()` to switch that
@@ -98,6 +104,89 @@ PROPTEST_CASES=2000 cargo test test_properties
 The last campaign run at `PROPTEST_CASES=2000` executed **14,000 generated
 cases** (7 properties × 2,000) with no counterexamples, in 28.7s.
 
+### Coverage-guided fuzzing
+
+`fuzz/` is a `cargo-fuzz` (libFuzzer) target that drives the real
+`verify_inclusion` entry point. It needs a nightly toolchain and `cargo-fuzz`:
+
+```bash
+rustup toolchain install nightly
+cargo install cargo-fuzz --version 0.13.2 --locked
+
+cd contracts/geoguard-ledger
+
+# The harness on its own, on stable — no nightly needed to sanity-check it.
+cargo test --manifest-path fuzz/Cargo.toml --test harness
+
+# The real thing. AddressSanitizer is the cargo-fuzz default.
+cargo +nightly fuzz run verify-inclusion
+
+# Time-boxed, the way CI runs it (~4x the executions, ~3.7x faster to build).
+cargo +nightly fuzz run --sanitizer none verify-inclusion -- -max_total_time=60
+```
+
+## The fuzz target
+
+One case does three things, all against a fresh `Env` with a real tree anchored:
+
+| Check | Assertion |
+|---|---|
+| Completeness | A genuine proof for a generated tree must verify. |
+| Differential | For arbitrary dataset hash, index and sibling list, the contract's answer must equal the reference's. |
+| Unanchored | A root that was never anchored must never verify. |
+
+The completeness check is what keeps the rest honest: a verifier that returned
+`false` for everything would satisfy the differential and unanchored checks
+trivially.
+
+The reference in `fuzz/src/harness.rs` is written from the documented scheme
+(and mirrors `backend/app/services/merkle.py`) using the `sha2` crate, while the
+contract hashes through the host crypto API. That is what makes a disagreement
+meaningful rather than a restatement of the same code.
+
+### Why the target compiles the contract's source
+
+The contract's `[lib] crate-type` is `["cdylib"]`, and a `cdylib` cannot be
+linked against. The obvious fix — adding `"rlib"` — was measured and rejected:
+rustc then has to preserve the crate's whole `pub` surface, and the deployed wasm
+grows from **11,942 to 25,621 bytes** (code section 5,611 → 17,755), with no
+Cargo flag to avoid it.
+
+So `fuzz/Cargo.toml` points its `[lib]` at `../src/lib.rs` instead. The contract's
+manifest, and therefore the artifact, is untouched, and the target still exercises
+the real code rather than a copy. The cost is that the fuzz manifest mirrors the
+contract's dependencies, and CI fails if the two lockfiles resolve a different
+`soroban-sdk` — because the fuzzer silently testing a different SDK than the
+contract ships would be worse than no fuzzer.
+
+### Throughput, and why the design looks like this
+
+Under the fuzzer a case runs at roughly **450/s**, so CI's 60-second budget buys
+about **27,000 cases** (about 6,900 under the slower ASAN default) — and since
+each case makes 18 verification calls, roughly **half a million verifications**
+per run. Two measured choices get it there:
+
+- **One `Env` per case, many verifications per `Env`.** A fresh `Env` — register,
+  initialize, anchor — costs about **0.38ms**, while a single `verify_inclusion`
+  costs about **0.015ms**. Running 16 differential checks against that one setup
+  costs roughly 3x a single-check case but makes 18 verification calls instead of
+  one.
+- **Not one `Env` for the whole run.** Reusing it was measured and rejected: the
+  host accumulates every registered instance and stored entry, so per-case cost
+  climbs from **3.2ms to over 10ms within 2,000 cases** — an order of magnitude
+  slower than the flat 0.38ms of a fresh `Env` — while resident memory grows about
+  **20KB per case**. A fresh `Env` also keeps a case's outcome a function of its
+  input alone, which is what makes a reported crash reproducible.
+
+### Evidence the target has teeth
+
+A green fuzz run means nothing on its own, so the harness was checked by
+injecting a real bug: swapping the two sides of the fold in `verify_inclusion`
+(`hash_node(node, sibling)` ↔ `hash_node(sibling, node)`). The fuzzer found it
+within seconds and shrank the reproducer to **3 bytes** (`ea0000`), reported by
+the completeness check. That bug is reverted; no such input exists in the
+current code.
+
 ### When a property fails
 
 `proptest` shrinks the failing input to a minimal one and writes it to
@@ -107,12 +196,10 @@ once failed can never silently start passing again.
 
 ## Coverage limits — read this before trusting the list
 
-- **This is property-based testing, not coverage-guided fuzzing.** There is no
-  `cargo-fuzz`/libFuzzer target. `cargo-fuzz` builds a `std` binary harness,
-  while this crate is `#![no_std]` and compiles to `wasm32-unknown-unknown`; a
-  fuzz target would need its own crate and a non-contract build of the logic.
-  The high-case `proptest` campaign is the practical substitute, and it is
-  *input-space* fuzzing over the arguments, not over the WASM.
+- **Neither the properties nor the fuzzer execute the deployed WASM.** Both call
+  the contract through `soroban-sdk`'s test host, which links the contract's
+  Rust natively. The real artifact is only exercised by a deploy plus the smoke
+  test. Everything here is a strong check on the *logic*, not on the wasm.
 - **The test host is not the network host.** These tests run against
   `soroban-sdk`'s test host, which models ledger behavior but is not the
   deployed protocol. A green suite is not a substitute for the testnet smoke
