@@ -21,6 +21,14 @@ pub use types::{AnchorRecord, RootRecord};
 /// ~100,000 ledgers is roughly six days at Stellar's ~5s ledger close time.
 const TTL_RENEWAL_MARGIN: u32 = 100_000;
 
+/// Deepest sibling path `verify_inclusion` will walk.
+///
+/// `index` is a `u32`, so a leaf position needs at most 32 halvings to reach the
+/// root: a longer path cannot describe a real position in any batch. Rejecting
+/// it outright keeps a malformed call from burning budget on an arbitrarily
+/// long path, and never turns away a proof that could have been genuine.
+const MAX_PROOF_DEPTH: u32 = 32;
+
 /// The threshold at which a renewal actually takes effect.
 ///
 /// Keeps the threshold strictly below the target so the renewal decision and the
@@ -227,6 +235,10 @@ impl GeoGuardLedger {
         if !storage::has_root(&env, &merkle_root) {
             return false;
         }
+        if siblings.len() > MAX_PROOF_DEPTH {
+            return false;
+        }
+
         let mut node = merkle::hash_leaf(&env, &dataset_hash);
         let mut idx = index;
 

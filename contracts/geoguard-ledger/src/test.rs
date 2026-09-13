@@ -543,4 +543,53 @@ mod tests {
 
         assert_eq!(client.get_total_batches(), 0);
     }
+
+    #[test]
+    fn increment_saturates_instead_of_aborting() {
+        let env = Env::default();
+        let (contract_id, client) = setup_env(&env);
+        let admin = Address::generate(&env);
+        client.initialize(&admin);
+        let submitter = Address::generate(&env);
+
+        // Drive the per-submitter counter to its ceiling, then anchor again.
+        env.as_contract(&contract_id, || {
+            env.storage()
+                .persistent()
+                .set(&DataKey::SubCount(submitter.clone()), &u32::MAX);
+        });
+
+        let hash = make_hash(&env, &[42u8; 32]);
+        client.anchor_hash(&submitter, &hash, &0, &Symbol::new(&env, "m"));
+
+        // With a plain `+ 1` the release profile's overflow check would abort
+        // this transaction. Saturating keeps the anchor landing and the counter
+        // pinned at its ceiling.
+        assert_eq!(client.get_record_count(&submitter), u32::MAX);
+        assert!(client.verify_integrity(&hash).is_some());
+    }
+
+    #[test]
+    fn test_verify_inclusion_rejects_an_over_long_proof() {
+        let env = Env::default();
+        let (_, client) = setup_env(&env);
+        let admin = Address::generate(&env);
+        client.initialize(&admin);
+        let submitter = Address::generate(&env);
+        let hash = make_hash(&env, &[3u8; 32]);
+        // A one-leaf tree's root is that leaf's hash, so the real proof is empty.
+        let root = crate::merkle::hash_leaf(&env, &hash);
+        client.anchor_root(&submitter, &root, &1);
+
+        assert!(client.verify_inclusion(&root, &hash, &0, &vec![&env]));
+
+        // An index is a u32, so no genuine path exceeds 32 levels. A path longer
+        // than that describes no real position, and the contract refuses to walk
+        // it rather than spending budget on it.
+        let mut padded = soroban_sdk::Vec::new(&env);
+        for i in 0..40u8 {
+            padded.push_back(make_hash(&env, &[i; 32]));
+        }
+        assert!(!client.verify_inclusion(&root, &hash, &0, &padded));
+    }
 }

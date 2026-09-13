@@ -95,7 +95,11 @@ pub fn get_submit_count(env: &Env, submitter: &Address) -> u32 {
 }
 
 pub fn increment_submit_count(env: &Env, submitter: &Address) {
-    let count = get_submit_count(env, submitter) + 1;
+    // Saturating, not `+ 1`: the release profile sets `overflow-checks = true`,
+    // so an overflowing add would abort the transaction rather than roll over.
+    // Reaching u32::MAX anchors is not realistic, but a saturating counter
+    // degrades into a wrong number where a panic ends the call.
+    let count = get_submit_count(env, submitter).saturating_add(1);
     env.storage()
         .persistent()
         .set(&DataKey::SubCount(submitter.clone()), &count);
@@ -117,7 +121,7 @@ pub fn set_total_anchored(env: &Env, count: u32) {
 }
 
 pub fn increment_total_anchored(env: &Env) {
-    let count = get_total_anchored(env) + 1;
+    let count = get_total_anchored(env).saturating_add(1);
     set_total_anchored(env, count);
 }
 
@@ -159,7 +163,7 @@ pub fn get_batch_count(env: &Env, submitter: &Address) -> u32 {
 }
 
 pub fn increment_batch_count(env: &Env, submitter: &Address) {
-    let count = get_batch_count(env, submitter) + 1;
+    let count = get_batch_count(env, submitter).saturating_add(1);
     env.storage()
         .persistent()
         .set(&DataKey::BatchCount(submitter.clone()), &count);
@@ -179,6 +183,6 @@ pub fn set_total_batches(env: &Env, count: u32) {
 }
 
 pub fn increment_total_batches(env: &Env) {
-    let count = get_total_batches(env) + 1;
+    let count = get_total_batches(env).saturating_add(1);
     set_total_batches(env, count);
 }
