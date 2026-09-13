@@ -7,12 +7,7 @@ import SubmissionStepper from "./SubmissionStepper";
 import AnomalyBadge from "./AnomalyBadge";
 import AnomalyWarnings from "./AnomalyWarnings";
 import TxExplorerLink from "./TxExplorerLink";
-import type {
-  CsvPreview,
-  SubmissionStep,
-  DatasetCreateResponse,
-  SubmitResponse,
-} from "../types";
+import type { CsvPreview, SubmissionStep, DatasetCreateResponse, SubmitResponse } from "../types";
 
 /**
  * Single-dataset anchoring: upload → preview → AI report → sign → confirmed.
@@ -31,23 +26,17 @@ export default function SingleAnchorFlow() {
   const [error, setError] = useState<string | null>(null);
 
   // Dataset creation response from backend
-  const [createResponse, setCreateResponse] =
-    useState<DatasetCreateResponse | null>(null);
+  const [createResponse, setCreateResponse] = useState<DatasetCreateResponse | null>(null);
 
   // Submit response after anchoring
-  const [submitResponse, setSubmitResponse] = useState<SubmitResponse | null>(
-    null,
-  );
+  const [submitResponse, setSubmitResponse] = useState<SubmitResponse | null>(null);
 
-  const handleFileSelected = useCallback(
-    (selectedFile: File, csvPreview: CsvPreview) => {
-      setFile(selectedFile);
-      setPreview(csvPreview);
-      setStep("preview");
-      setError(null);
-    },
-    [],
-  );
+  const handleFileSelected = useCallback((selectedFile: File, csvPreview: CsvPreview) => {
+    setFile(selectedFile);
+    setPreview(csvPreview);
+    setStep("preview");
+    setError(null);
+  }, []);
 
   const handleSubmitToBackend = useCallback(async () => {
     if (!file || !publicKey) return;
@@ -59,9 +48,7 @@ export default function SingleAnchorFlow() {
       setCreateResponse(result);
       setStep("ai-report");
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Failed to process dataset",
-      );
+      setError(err instanceof Error ? err.message : "Failed to process dataset");
     } finally {
       setProcessing(false);
     }
@@ -129,19 +116,15 @@ export default function SingleAnchorFlow() {
         <div className="space-y-6">
           <div className="card bg-yellow-50 border border-yellow-200">
             <p className="text-sm text-yellow-800">
-              Review the data preview below. When you're ready, we'll hash the
-              dataset and run AI anomaly detection.
+              Review the data preview below. When you're ready, we'll hash the dataset and run AI
+              anomaly detection.
             </p>
           </div>
           <div className="card">
             <CsvDropzone onFileSelected={handleFileSelected} />
           </div>
           <div className="flex gap-3 justify-end">
-            <button
-              onClick={handleReset}
-              className="btn-secondary"
-              disabled={processing}
-            >
+            <button onClick={handleReset} className="btn-secondary" disabled={processing}>
               Cancel
             </button>
             <button
@@ -168,27 +151,17 @@ export default function SingleAnchorFlow() {
           <div className="card">
             <h2 className="text-lg font-semibold mb-4">AI Anomaly Report</h2>
             <div className="flex items-center gap-3 mb-4">
-              <AnomalyBadge
-                score={createResponse.anomaly_report.score}
-                size="md"
-                showLabel
-              />
-              <span className="text-sm text-gray-500">
-                {createResponse.anomaly_report.summary}
-              </span>
+              <AnomalyBadge score={createResponse.anomaly_report.score} size="md" showLabel />
+              <span className="text-sm text-gray-500">{createResponse.anomaly_report.summary}</span>
             </div>
             {createResponse.anomaly_report.flags.length > 0 && (
               <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">
-                <strong>
-                  {createResponse.anomaly_report.flags.length} row(s)
-                </strong>{" "}
-                flagged as anomalous.
+                <strong>{createResponse.anomaly_report.flags.length} row(s)</strong> flagged as
+                anomalous.
               </div>
             )}
             <div className="mt-3">
-              <AnomalyWarnings
-                warnings={createResponse.anomaly_report.warnings ?? []}
-              />
+              <AnomalyWarnings warnings={createResponse.anomaly_report.warnings ?? []} />
             </div>
             <div className="mt-4 bg-gray-50 rounded-lg p-3">
               <p className="text-xs text-gray-500 mb-1">Dataset Hash</p>
@@ -214,8 +187,8 @@ export default function SingleAnchorFlow() {
         <div className="space-y-6">
           <div className="card bg-blue-50 border border-blue-200">
             <p className="text-sm text-blue-800">
-              Review the transaction details and sign with your Freighter wallet
-              to anchor this proof on the Stellar network.
+              Review the transaction details and sign with your Freighter wallet to anchor this
+              proof on the Stellar network.
             </p>
           </div>
           <div className="card space-y-3">
@@ -223,9 +196,7 @@ export default function SingleAnchorFlow() {
               <>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500">Dataset Hash</span>
-                  <code className="font-mono">
-                    {createResponse.dataset_hash.slice(0, 16)}...
-                  </code>
+                  <code className="font-mono">{createResponse.dataset_hash.slice(0, 16)}...</code>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500">Anomaly Score</span>
@@ -243,11 +214,7 @@ export default function SingleAnchorFlow() {
             )}
           </div>
           <div className="flex gap-3 justify-end">
-            <button
-              onClick={handleReset}
-              className="btn-secondary"
-              disabled={processing}
-            >
+            <button onClick={handleReset} className="btn-secondary" disabled={processing}>
               Cancel
             </button>
             <button
@@ -269,10 +236,7 @@ export default function SingleAnchorFlow() {
           </div>
           {!connected && (
             <div className="text-center">
-              <button
-                onClick={connect}
-                className="text-sm text-stellar hover:underline"
-              >
+              <button onClick={connect} className="text-sm text-stellar hover:underline">
                 Connect your Freighter wallet to continue
               </button>
             </div>
@@ -297,9 +261,7 @@ export default function SingleAnchorFlow() {
                 d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
               />
             </svg>
-            <h2 className="text-xl font-bold text-green-800 mb-2">
-              Dataset Anchored!
-            </h2>
+            <h2 className="text-xl font-bold text-green-800 mb-2">Dataset Anchored!</h2>
             <p className="text-green-700 text-sm mb-6">
               Your dataset integrity proof is now on the Stellar blockchain.
             </p>
@@ -313,9 +275,7 @@ export default function SingleAnchorFlow() {
               </div>
               <div className="bg-white rounded-lg p-3 flex justify-between text-sm">
                 <span className="text-gray-500">Ledger</span>
-                <span className="font-mono">
-                  #{submitResponse.ledger_number}
-                </span>
+                <span className="font-mono">#{submitResponse.ledger_number}</span>
               </div>
               <div className="bg-white rounded-lg p-3 flex justify-between text-sm items-center">
                 <span className="text-gray-500">Transaction</span>

@@ -5,8 +5,7 @@ interface Props {
 }
 
 export default function WalletConnector({ compact }: Props) {
-  const { connected, publicKey, network, error, connect, disconnect } =
-    useWallet();
+  const { connected, publicKey, network, error, connect, disconnect } = useWallet();
 
   if (connected && publicKey) {
     return (
@@ -21,9 +20,7 @@ export default function WalletConnector({ compact }: Props) {
         </div>
         <span
           className={`text-xs px-2 py-0.5 rounded-full ${
-            network === "testnet"
-              ? "bg-yellow-100 text-yellow-800"
-              : "bg-blue-100 text-blue-800"
+            network === "testnet" ? "bg-yellow-100 text-yellow-800" : "bg-blue-100 text-blue-800"
           }`}
         >
           {network}
@@ -41,9 +38,7 @@ export default function WalletConnector({ compact }: Props) {
   return (
     <div className={compact ? "" : "space-y-3"}>
       {!compact && (
-        <p className="text-sm text-gray-600">
-          Connect your Freighter wallet to get started.
-        </p>
+        <p className="text-sm text-gray-600">Connect your Freighter wallet to get started.</p>
       )}
       <button
         onClick={connect}
@@ -59,11 +54,7 @@ export default function WalletConnector({ compact }: Props) {
         </svg>
         Connect Freighter
       </button>
-      {error && (
-        <p className="text-sm text-red-600">
-          {error}
-        </p>
-      )}
+      {error && <p className="text-sm text-red-600">{error}</p>}
     </div>
   );
 }

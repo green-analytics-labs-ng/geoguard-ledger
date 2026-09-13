@@ -1,10 +1,5 @@
 import { useState, useRef, useCallback, type DragEvent, type ChangeEvent } from "react";
-import {
-  validateDataFile,
-  parseCsvPreview,
-  parseJsonPreview,
-  type CsvPreview,
-} from "../utils/csv";
+import { validateDataFile, parseCsvPreview, parseJsonPreview, type CsvPreview } from "../utils/csv";
 import { parseXmlPreview } from "../utils/xml";
 
 type FileKind = "csv" | "json" | "xml";
@@ -150,9 +145,7 @@ export default function CsvDropzone({ onFileSelected }: Props) {
             ? "Drop your data file here"
             : "Drop a CSV, JSON, or XML file here, or click to browse"}
         </p>
-        <p className="text-gray-400 text-sm mt-1">
-          .csv, .json, or .xml files (max 50 MB)
-        </p>
+        <p className="text-gray-400 text-sm mt-1">.csv, .json, or .xml files (max 50 MB)</p>
       </div>
 
       {error && (
@@ -176,7 +169,10 @@ export default function CsvDropzone({ onFileSelected }: Props) {
               <thead>
                 <tr className="bg-gray-50">
                   {preview.headers.map((h, i) => (
-                    <th key={i} className="px-4 py-2 text-left font-medium text-gray-600 border-r last:border-r-0">
+                    <th
+                      key={i}
+                      className="px-4 py-2 text-left font-medium text-gray-600 border-r last:border-r-0"
+                    >
                       {h}
                     </th>
                   ))}
@@ -186,7 +182,10 @@ export default function CsvDropzone({ onFileSelected }: Props) {
                 {preview.rows.slice(0, 5).map((row, ri) => (
                   <tr key={ri} className="border-t border-gray-100 hover:bg-gray-50">
                     {row.map((cell, ci) => (
-                      <td key={ci} className="px-4 py-2 text-gray-700 border-r last:border-r-0 truncate max-w-[200px]">
+                      <td
+                        key={ci}
+                        className="px-4 py-2 text-gray-700 border-r last:border-r-0 truncate max-w-[200px]"
+                      >
                         {cell}
                       </td>
                     ))}

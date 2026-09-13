@@ -22,8 +22,7 @@ export function useDatasets(): UseDatasetsReturn {
       const data = await listDatasets();
       setDatasets(data.datasets);
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Failed to fetch datasets";
+      const message = err instanceof Error ? err.message : "Failed to fetch datasets";
       setError(message);
     } finally {
       setLoading(false);
@@ -34,16 +33,13 @@ export function useDatasets(): UseDatasetsReturn {
     fetchDatasets();
   }, [fetchDatasets]);
 
-  const getDataset = useCallback(
-    async (id: string): Promise<DatasetResponse | null> => {
-      try {
-        return await apiGetDataset(id);
-      } catch {
-        return null;
-      }
-    },
-    [],
-  );
+  const getDataset = useCallback(async (id: string): Promise<DatasetResponse | null> => {
+    try {
+      return await apiGetDataset(id);
+    } catch {
+      return null;
+    }
+  }, []);
 
   return { datasets, loading, error, getDataset, refresh: fetchDatasets };
 }

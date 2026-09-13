@@ -1,9 +1,5 @@
 import client from "./client";
-import type {
-  BatchCreateResponse,
-  BatchResponse,
-  BatchSubmitResponse,
-} from "../types";
+import type { BatchCreateResponse, BatchResponse, BatchSubmitResponse } from "../types";
 
 /**
  * Build a Merkle root over the given datasets and get an unsigned anchoring

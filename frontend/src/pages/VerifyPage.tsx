@@ -1,9 +1,7 @@
 import { useState, useCallback, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useVerify } from "../hooks/useVerify";
-import VerificationResult, {
-  VerificationResultEmpty,
-} from "../components/VerificationResult";
+import VerificationResult, { VerificationResultEmpty } from "../components/VerificationResult";
 import WalletConnector from "../components/WalletConnector";
 import { validateCsvFile } from "../utils/csv";
 
@@ -78,8 +76,7 @@ export default function VerifyPage() {
       <div className="max-w-3xl mx-auto px-4 py-8">
         <h1 className="text-2xl font-bold text-stellar mb-2">Verify Dataset</h1>
         <p className="text-sm text-gray-500 mb-8">
-          Check whether a dataset's integrity proof exists on the Stellar
-          blockchain.
+          Check whether a dataset's integrity proof exists on the Stellar blockchain.
         </p>
 
         {/* Mode selector */}
@@ -171,11 +168,7 @@ export default function VerifyPage() {
 
         {/* Result */}
         <div className="card">
-          {result ? (
-            <VerificationResult result={result} />
-          ) : (
-            <VerificationResultEmpty />
-          )}
+          {result ? <VerificationResult result={result} /> : <VerificationResultEmpty />}
         </div>
       </div>
     </div>

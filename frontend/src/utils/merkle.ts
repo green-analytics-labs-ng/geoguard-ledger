@@ -55,9 +55,7 @@ export interface BatchMembership {
  * because its root is the leaf's own hash. A dataset that has a batch assigned
  * but no proof recorded yet is still reported as a member.
  */
-export function batchMembership(
-  dataset: BatchMembershipFields,
-): BatchMembership | null {
+export function batchMembership(dataset: BatchMembershipFields): BatchMembership | null {
   const { batch_id, merkle_root, leaf_index, merkle_proof } = dataset;
 
   if (!batch_id || merkle_root == null || leaf_index == null) {

@@ -1,12 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
-import {
-  createContext,
-  useContext,
-  useState,
-  useCallback,
-  useEffect,
-  type ReactNode,
-} from "react";
+import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from "react";
 import {
   isAllowed,
   isConnected as freighterIsConnected,
@@ -58,8 +51,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
         const addrRes = await getAddress();
         const networkRes = await getNetwork();
-        const network =
-          networkRes.network === "PUBLIC" ? "mainnet" : "testnet";
+        const network = networkRes.network === "PUBLIC" ? "mainnet" : "testnet";
 
         setWallet({
           connected: true,
@@ -85,8 +77,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
       const addrRes = await getAddress();
       const networkRes = await getNetwork();
-      const network =
-        networkRes.network === "PUBLIC" ? "mainnet" : "testnet";
+      const network = networkRes.network === "PUBLIC" ? "mainnet" : "testnet";
 
       setWallet({
         connected: true,
@@ -96,8 +87,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         error: null,
       });
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Failed to connect Freighter";
+      const message = err instanceof Error ? err.message : "Failed to connect Freighter";
       setWallet((prev) => ({
         ...prev,
         connected: false,
@@ -124,9 +114,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         networkPassphrase: wallet.networkPassphrase,
       });
       if (signed.error) {
-        throw new Error(
-          signed.error.message || "Failed to sign transaction",
-        );
+        throw new Error(signed.error.message || "Failed to sign transaction");
       }
       return signed.signedTxXdr;
     },

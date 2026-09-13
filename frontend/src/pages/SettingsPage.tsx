@@ -48,8 +48,8 @@ export default function SettingsPage() {
           <h2 className="text-lg font-semibold mb-4">Network</h2>
           <div className="space-y-3">
             <p className="text-sm text-gray-600">
-              Currently connected to the Stellar network. To switch networks,
-              change the network in your Freighter wallet extension.
+              Currently connected to the Stellar network. To switch networks, change the network in
+              your Freighter wallet extension.
             </p>
             <div className="flex gap-3">
               <div
@@ -60,9 +60,7 @@ export default function SettingsPage() {
                 }`}
               >
                 <div className="font-semibold">Testnet</div>
-                <div className="text-xs mt-1 opacity-70">
-                  For development & testing
-                </div>
+                <div className="text-xs mt-1 opacity-70">For development & testing</div>
               </div>
               <div
                 className={`flex-1 px-4 py-3 rounded-lg border text-sm font-medium ${
@@ -72,9 +70,7 @@ export default function SettingsPage() {
                 }`}
               >
                 <div className="font-semibold">Mainnet</div>
-                <div className="text-xs mt-1 opacity-70">
-                  Production (requires real XLM)
-                </div>
+                <div className="text-xs mt-1 opacity-70">Production (requires real XLM)</div>
               </div>
             </div>
             {error && <p className="text-sm text-red-600">{error}</p>}
@@ -89,8 +85,8 @@ export default function SettingsPage() {
               <strong>GeoGuard Ledger</strong> v0.2.0
             </p>
             <p>
-              An open-source research integrity system for geochemical data
-              anchoring on the Stellar blockchain.
+              An open-source research integrity system for geochemical data anchoring on the Stellar
+              blockchain.
             </p>
             <p>
               Built by{" "}

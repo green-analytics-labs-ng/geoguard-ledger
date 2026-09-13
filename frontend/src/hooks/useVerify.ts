@@ -30,8 +30,7 @@ export function useVerify(): UseVerifyReturn {
       }
       setResult(res);
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Verification failed";
+      const message = err instanceof Error ? err.message : "Verification failed";
       setError(message);
     } finally {
       setLoading(false);

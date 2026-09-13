@@ -56,10 +56,7 @@ export default function DatasetTable({ datasets, loading, error }: Props) {
           />
         </svg>
         <p className="text-gray-500">No datasets anchored yet.</p>
-        <Link
-          to="/upload"
-          className="inline-block mt-3 text-sm text-stellar hover:underline"
-        >
+        <Link to="/upload" className="inline-block mt-3 text-sm text-stellar hover:underline">
           Upload your first dataset
         </Link>
       </div>
@@ -119,11 +116,25 @@ export default function DatasetTable({ datasets, loading, error }: Props) {
                   }`}
                 >
                   {ds.status === "anchored" && (
-                    <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                    <svg
+                      className="w-3 h-3 mr-1"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2.5}
+                        d="M5 13l4 4L19 7"
+                      />
                     </svg>
                   )}
-                  {ds.status === "pending" ? "Pending" : ds.status === "anchored" ? "Anchored" : "Failed"}
+                  {ds.status === "pending"
+                    ? "Pending"
+                    : ds.status === "anchored"
+                      ? "Anchored"
+                      : "Failed"}
                 </span>
               </td>
               <td className="px-4 py-3">

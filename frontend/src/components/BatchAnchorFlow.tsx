@@ -25,8 +25,7 @@ interface BatchMember {
 /** Prefer the backend's `detail` message over axios's generic status text. */
 function apiErrorMessage(err: unknown, fallback: string): string {
   if (typeof err === "object" && err !== null) {
-    const response = (err as { response?: { data?: { detail?: unknown } } })
-      .response;
+    const response = (err as { response?: { data?: { detail?: unknown } } }).response;
     const detail = response?.data?.detail;
     if (typeof detail === "string" && detail.length > 0) return detail;
   }
@@ -50,14 +49,9 @@ function BatchMembers({ members, onRemove }: MembersProps) {
   return (
     <ul className="divide-y divide-gray-100">
       {members.map(({ dataset, fileName }) => (
-        <li
-          key={dataset.dataset_id}
-          className="py-3 flex items-start justify-between gap-3"
-        >
+        <li key={dataset.dataset_id} className="py-3 flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-sm font-medium text-gray-700 truncate">
-              {fileName}
-            </p>
+            <p className="text-sm font-medium text-gray-700 truncate">{fileName}</p>
             <code className="text-xs font-mono text-gray-500 break-all">
               {dataset.dataset_hash}
             </code>
@@ -128,9 +122,7 @@ export default function BatchAnchorFlow() {
   }, [pending, publicKey]);
 
   const handleRemoveMember = useCallback((datasetId: string) => {
-    setMembers((prev) =>
-      prev.filter((member) => member.dataset.dataset_id !== datasetId),
-    );
+    setMembers((prev) => prev.filter((member) => member.dataset.dataset_id !== datasetId));
   }, []);
 
   const handleCreateRoot = useCallback(async () => {
@@ -185,9 +177,7 @@ export default function BatchAnchorFlow() {
     setError(null);
   }, []);
 
-  const memberById = new Map(
-    members.map((member) => [member.dataset.dataset_id, member]),
-  );
+  const memberById = new Map(members.map((member) => [member.dataset.dataset_id, member]));
 
   return (
     <div className="space-y-6">
@@ -227,10 +217,7 @@ export default function BatchAnchorFlow() {
 
           <div className="card">
             <h2 className="text-lg font-semibold mb-4">Add a Dataset</h2>
-            <CsvDropzone
-              key={dropzoneKey}
-              onFileSelected={handleFileSelected}
-            />
+            <CsvDropzone key={dropzoneKey} onFileSelected={handleFileSelected} />
 
             {pending ? (
               <div className="flex gap-3 justify-end mt-4">
@@ -261,17 +248,14 @@ export default function BatchAnchorFlow() {
               </div>
             ) : (
               <p className="text-xs text-gray-400 mt-3">
-                Each dataset is hashed and checked for anomalies as you add it.
-                Nothing is anchored until you sign the batch transaction.
+                Each dataset is hashed and checked for anomalies as you add it. Nothing is anchored
+                until you sign the batch transaction.
               </p>
             )}
 
             {!connected && (
               <div className="text-center mt-3">
-                <button
-                  onClick={connect}
-                  className="text-sm text-stellar hover:underline"
-                >
+                <button onClick={connect} className="text-sm text-stellar hover:underline">
                   Connect your Freighter wallet to build a batch
                 </button>
               </div>
@@ -293,19 +277,15 @@ export default function BatchAnchorFlow() {
             <BatchMembers members={members} />
             {members.length > 0 && (
               <div className="mt-4 bg-gray-50 rounded-lg p-3 text-sm text-gray-600">
-                These datasets will be committed to a single Merkle root — one
-                on-chain entry for the whole batch. Leaf order follows the order
-                below, and each dataset keeps its own inclusion proof.
+                These datasets will be committed to a single Merkle root — one on-chain entry for
+                the whole batch. Leaf order follows the order below, and each dataset keeps its own
+                inclusion proof.
               </div>
             )}
           </div>
 
           <div className="flex flex-wrap gap-3 justify-end">
-            <button
-              onClick={handleReset}
-              className="btn-secondary"
-              disabled={processing}
-            >
+            <button onClick={handleReset} className="btn-secondary" disabled={processing}>
               Cancel
             </button>
             <button
@@ -347,9 +327,7 @@ export default function BatchAnchorFlow() {
 
             <div className="bg-gray-50 rounded-lg p-3 mb-4">
               <p className="text-xs text-gray-500 mb-1">Merkle Root</p>
-              <code className="text-sm font-mono text-gray-700 break-all">
-                {batch.merkle_root}
-              </code>
+              <code className="text-sm font-mono text-gray-700 break-all">{batch.merkle_root}</code>
             </div>
 
             <p className="text-xs text-gray-500 mb-2">Committed datasets</p>
@@ -361,8 +339,7 @@ export default function BatchAnchorFlow() {
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="text-sm font-medium text-gray-700 truncate">
-                          {member?.fileName ??
-                            `${leaf.dataset_id.slice(0, 8)}...`}
+                          {member?.fileName ?? `${leaf.dataset_id.slice(0, 8)}...`}
                         </p>
                         <code className="text-xs font-mono text-gray-500 break-all">
                           {leaf.dataset_hash}
@@ -370,14 +347,10 @@ export default function BatchAnchorFlow() {
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
                         <AnomalyBadge score={leaf.anomaly_score} />
-                        <span className="text-xs text-gray-500">
-                          Leaf {leaf.leaf_index}
-                        </span>
+                        <span className="text-xs text-gray-500">Leaf {leaf.leaf_index}</span>
                       </div>
                     </div>
-                    <AnomalyWarnings
-                      warnings={member?.dataset.anomaly_report.warnings ?? []}
-                    />
+                    <AnomalyWarnings warnings={member?.dataset.anomaly_report.warnings ?? []} />
                   </li>
                 );
               })}
@@ -401,8 +374,7 @@ export default function BatchAnchorFlow() {
           <div className="card bg-blue-50 border border-blue-200">
             <p className="text-sm text-blue-800">
               Sign once to anchor all {batch.leaf_count} dataset
-              {batch.leaf_count === 1 ? "" : "s"} in this batch. They share a
-              single transaction.
+              {batch.leaf_count === 1 ? "" : "s"} in this batch. They share a single transaction.
             </p>
           </div>
 
@@ -428,11 +400,7 @@ export default function BatchAnchorFlow() {
           </div>
 
           <div className="flex gap-3 justify-end">
-            <button
-              onClick={handleReset}
-              className="btn-secondary"
-              disabled={processing}
-            >
+            <button onClick={handleReset} className="btn-secondary" disabled={processing}>
               Cancel
             </button>
             <button
@@ -455,10 +423,7 @@ export default function BatchAnchorFlow() {
 
           {!connected && (
             <div className="text-center">
-              <button
-                onClick={connect}
-                className="text-sm text-stellar hover:underline"
-              >
+              <button onClick={connect} className="text-sm text-stellar hover:underline">
                 Connect your Freighter wallet to continue
               </button>
             </div>
@@ -483,20 +448,16 @@ export default function BatchAnchorFlow() {
                 d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
               />
             </svg>
-            <h2 className="text-xl font-bold text-green-800 mb-2">
-              Batch Anchored!
-            </h2>
+            <h2 className="text-xl font-bold text-green-800 mb-2">Batch Anchored!</h2>
             <p className="text-green-700 text-sm mb-6">
-              {batch.leaf_count} dataset{batch.leaf_count === 1 ? "" : "s"} are
-              now provable against a single on-chain Merkle root.
+              {batch.leaf_count} dataset{batch.leaf_count === 1 ? "" : "s"} are now provable against
+              a single on-chain Merkle root.
             </p>
 
             <div className="max-w-sm mx-auto space-y-3 text-left">
               <div className="bg-white rounded-lg p-3 flex justify-between text-sm">
                 <span className="text-gray-500">Status</span>
-                <span className="font-semibold text-green-700 capitalize">
-                  {anchored.status}
-                </span>
+                <span className="font-semibold text-green-700 capitalize">{anchored.status}</span>
               </div>
               <div className="bg-white rounded-lg p-3 flex justify-between text-sm">
                 <span className="text-gray-500">Ledger</span>
@@ -504,18 +465,13 @@ export default function BatchAnchorFlow() {
               </div>
               <div className="bg-white rounded-lg p-3 flex justify-between text-sm items-center gap-3">
                 <span className="text-gray-500 shrink-0">Transaction</span>
-                <TxExplorerLink
-                  txHash={anchored.stellar_tx_hash}
-                  network={network ?? "testnet"}
-                />
+                <TxExplorerLink txHash={anchored.stellar_tx_hash} network={network ?? "testnet"} />
               </div>
             </div>
           </div>
 
           <div className="card">
-            <h2 className="text-sm font-semibold text-gray-700 mb-2">
-              Merkle Root
-            </h2>
+            <h2 className="text-sm font-semibold text-gray-700 mb-2">Merkle Root</h2>
             <code className="text-sm font-mono text-gray-700 break-all bg-gray-50 px-3 py-2 rounded block">
               {batch.merkle_root}
             </code>
@@ -525,9 +481,8 @@ export default function BatchAnchorFlow() {
             <div>
               <h2 className="text-lg font-semibold">Inclusion Proofs</h2>
               <p className="text-sm text-gray-500 mt-1">
-                Each dataset is proven by its leaf position and sibling path
-                against the root above. Re-submit a dataset on the Verify page
-                to re-check its proof.
+                Each dataset is proven by its leaf position and sibling path against the root above.
+                Re-submit a dataset on the Verify page to re-check its proof.
               </p>
             </div>
 
@@ -538,8 +493,7 @@ export default function BatchAnchorFlow() {
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-gray-700 truncate">
-                        {member?.fileName ??
-                          `${leaf.dataset_id.slice(0, 8)}...`}
+                        {member?.fileName ?? `${leaf.dataset_id.slice(0, 8)}...`}
                       </p>
                       <code className="text-xs font-mono text-gray-500 break-all">
                         {leaf.dataset_hash}
@@ -549,9 +503,7 @@ export default function BatchAnchorFlow() {
                       <AnomalyBadge score={leaf.anomaly_score} />
                       <button
                         type="button"
-                        onClick={() =>
-                          navigate(`/verify?dataset_hash=${leaf.dataset_hash}`)
-                        }
+                        onClick={() => navigate(`/verify?dataset_hash=${leaf.dataset_hash}`)}
                         className="text-xs text-stellar hover:underline"
                       >
                         Verify proof
@@ -560,14 +512,10 @@ export default function BatchAnchorFlow() {
                   </div>
                   <div>
                     <p className="text-xs text-gray-500 mb-1">Leaf Position</p>
-                    <p className="text-sm font-mono text-gray-700">
-                      {leaf.leaf_index}
-                    </p>
+                    <p className="text-sm font-mono text-gray-700">{leaf.leaf_index}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-gray-500 mb-2">
-                      Sibling Path (bottom-up)
-                    </p>
+                    <p className="text-xs text-gray-500 mb-2">Sibling Path (bottom-up)</p>
                     <ProofPath siblings={leaf.merkle_proof} />
                   </div>
                 </div>
@@ -579,10 +527,7 @@ export default function BatchAnchorFlow() {
             <button onClick={handleReset} className="btn-primary">
               Start a New Batch
             </button>
-            <button
-              onClick={() => navigate("/verify")}
-              className="btn-secondary"
-            >
+            <button onClick={() => navigate("/verify")} className="btn-secondary">
               Verify a Proof
             </button>
           </div>

@@ -32,8 +32,7 @@ export default function AnomalyBadge({ score, showLabel = true, size = "sm" }: P
           score < 0.05 ? "bg-green-500" : score < 0.2 ? "bg-yellow-500" : "bg-red-500"
         }`}
       />
-      {pct}%
-      {showLabel && <span className="opacity-70">{label}</span>}
+      {pct}%{showLabel && <span className="opacity-70">{label}</span>}
     </span>
   );
 }

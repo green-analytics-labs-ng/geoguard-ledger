@@ -18,10 +18,7 @@ export async function uploadCsv(
   return data;
 }
 
-export async function submitDataset(
-  datasetId: string,
-  signedTransactionXdr: string,
-) {
+export async function submitDataset(datasetId: string, signedTransactionXdr: string) {
   const { data } = await client.post(`/datasets/${datasetId}/submit`, {
     signed_transaction_xdr: signedTransactionXdr,
   });

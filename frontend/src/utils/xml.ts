@@ -68,9 +68,7 @@ function cellValue(record: Element, header: string): string {
   const attribute = record.getAttribute(header);
   if (attribute !== null) return attribute.trim();
 
-  const child = Array.from(record.children).find(
-    (element) => element.tagName === header,
-  );
+  const child = Array.from(record.children).find((element) => element.tagName === header);
   if (!child) return "";
 
   return (child.textContent ?? "").trim();

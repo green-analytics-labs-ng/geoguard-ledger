@@ -12,8 +12,8 @@ export function ProofPath({ siblings }: ProofPathProps) {
   if (siblings.length === 0) {
     return (
       <p className="text-sm text-gray-500">
-        No sibling hashes — this batch has a single leaf, so the root is the
-        dataset&apos;s own hash.
+        No sibling hashes — this batch has a single leaf, so the root is the dataset&apos;s own
+        hash.
       </p>
     );
   }
@@ -22,12 +22,8 @@ export function ProofPath({ siblings }: ProofPathProps) {
     <ol className="space-y-1">
       {siblings.map((sibling, i) => (
         <li key={`${i}-${sibling}`} className="flex gap-2">
-          <span className="text-xs text-gray-400 font-mono w-6 shrink-0 pt-0.5">
-            {i + 1}
-          </span>
-          <code className="text-xs font-mono text-gray-600 break-all">
-            {sibling}
-          </code>
+          <span className="text-xs text-gray-400 font-mono w-6 shrink-0 pt-0.5">{i + 1}</span>
+          <code className="text-xs font-mono text-gray-600 break-all">{sibling}</code>
         </li>
       ))}
     </ol>
@@ -40,27 +36,14 @@ interface VerdictBadgeProps {
 }
 
 /** Colour-coded badge for how an inclusion proof was validated. */
-export function InclusionVerdictBadge({
-  verifiedLocally,
-  verifiedOnChain,
-}: VerdictBadgeProps) {
+export function InclusionVerdictBadge({ verifiedLocally, verifiedOnChain }: VerdictBadgeProps) {
   const verdict = inclusionVerdict(verifiedLocally, verifiedOnChain);
 
   if (verdict === "on-chain") {
     return (
       <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-green-100 text-green-800 border border-green-200">
-        <svg
-          className="w-3 h-3"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2.5}
-            d="M5 13l4 4L19 7"
-          />
+        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
         </svg>
         Verified on-chain
       </span>
@@ -117,15 +100,11 @@ export default function MerkleProof({
   return (
     <div
       className={`border rounded-lg p-4 space-y-4 ${
-        showVerdict && !verified
-          ? "border-red-200 bg-red-50"
-          : "border-gray-200 bg-white"
+        showVerdict && !verified ? "border-red-200 bg-red-50" : "border-gray-200 bg-white"
       }`}
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="text-sm font-semibold text-gray-700">
-          Merkle Inclusion Proof
-        </h3>
+        <h3 className="text-sm font-semibold text-gray-700">Merkle Inclusion Proof</h3>
         {showVerdict && (
           <InclusionVerdictBadge
             verifiedLocally={verifiedLocally}
@@ -162,9 +141,7 @@ export default function MerkleProof({
       {batchId && (
         <div>
           <p className="text-xs text-gray-500 mb-1">Batch</p>
-          <code className="text-xs font-mono text-gray-500 break-all">
-            {batchId}
-          </code>
+          <code className="text-xs font-mono text-gray-500 break-all">{batchId}</code>
         </div>
       )}
     </div>

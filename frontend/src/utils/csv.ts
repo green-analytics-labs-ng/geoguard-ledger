@@ -11,9 +11,7 @@ const SUPPORTED_EXTENSIONS = [".csv", ".json", ".xml"];
 
 /** Check if a filename has a supported extension. */
 export function isSupportedFormat(filename: string): boolean {
-  return SUPPORTED_EXTENSIONS.some((ext) =>
-    filename.toLowerCase().endsWith(ext),
-  );
+  return SUPPORTED_EXTENSIONS.some((ext) => filename.toLowerCase().endsWith(ext));
 }
 
 /** Validate a data file (CSV, JSON or XML) for size and format. */
@@ -115,9 +113,7 @@ export function parseCsvPreview(text: string, maxRows: number = 10): CsvPreview 
   const rows = parseCsvRows(text);
   const [headers = [], ...dataRows] = rows;
 
-  const populatedRows = dataRows.filter(
-    (row) => !(row.length === 1 && row[0] === ""),
-  );
+  const populatedRows = dataRows.filter((row) => !(row.length === 1 && row[0] === ""));
 
   return {
     headers,
@@ -181,4 +177,3 @@ export function parseJsonPreview(text: string, maxRows: number = 10): CsvPreview
 
   return { headers, rows, totalRows };
 }
-

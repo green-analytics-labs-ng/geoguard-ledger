@@ -7,11 +7,21 @@ export default function DashboardPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
           <h1 className="text-xl font-bold text-stellar">GeoGuard Ledger</h1>
           <nav className="flex gap-4 text-sm">
-            <Link to="/" className="text-gray-600 hover:text-stellar transition-colors">Dashboard</Link>
-            <Link to="/upload" className="text-gray-600 hover:text-stellar transition-colors">Upload</Link>
-            <Link to="/datasets" className="text-gray-600 hover:text-stellar transition-colors">Datasets</Link>
-            <Link to="/verify" className="text-gray-600 hover:text-stellar transition-colors">Verify</Link>
-            <Link to="/settings" className="text-gray-600 hover:text-stellar transition-colors">Settings</Link>
+            <Link to="/" className="text-gray-600 hover:text-stellar transition-colors">
+              Dashboard
+            </Link>
+            <Link to="/upload" className="text-gray-600 hover:text-stellar transition-colors">
+              Upload
+            </Link>
+            <Link to="/datasets" className="text-gray-600 hover:text-stellar transition-colors">
+              Datasets
+            </Link>
+            <Link to="/verify" className="text-gray-600 hover:text-stellar transition-colors">
+              Verify
+            </Link>
+            <Link to="/settings" className="text-gray-600 hover:text-stellar transition-colors">
+              Settings
+            </Link>
           </nav>
         </div>
       </header>
@@ -35,8 +45,12 @@ export default function DashboardPage() {
         <div className="card">
           <h2 className="text-lg font-semibold mb-4">Quick Actions</h2>
           <div className="flex gap-4">
-            <Link to="/upload" className="btn-primary">Upload New Dataset</Link>
-            <Link to="/verify" className="btn-secondary">Verify a Dataset</Link>
+            <Link to="/upload" className="btn-primary">
+              Upload New Dataset
+            </Link>
+            <Link to="/verify" className="btn-secondary">
+              Verify a Dataset
+            </Link>
           </div>
         </div>
       </main>

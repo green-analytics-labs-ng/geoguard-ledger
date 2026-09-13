@@ -19,24 +19,14 @@ export default function BatchBadge({ membership }: Props) {
       className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-violet-100 text-violet-800 border border-violet-200"
       title={`Batched — leaf ${leafIndex} of Merkle root ${root} (batch ${batchId})`}
     >
-      <svg
-        className="w-3 h-3"
-        fill="none"
-        stroke="currentColor"
-        viewBox="0 0 24 24"
-      >
+      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path
           strokeLinecap="round"
           strokeLinejoin="round"
           strokeWidth={2}
           d="M12 3l8 4.5-8 4.5-8-4.5 8-4.5z"
         />
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth={2}
-          d="M4 12l8 4.5 8-4.5"
-        />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 12l8 4.5 8-4.5" />
         <path
           strokeLinecap="round"
           strokeLinejoin="round"

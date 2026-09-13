@@ -27,9 +27,7 @@ export default function DatasetDetailPage() {
       const data = await getDataset(id);
       setDataset(data);
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Failed to load dataset",
-      );
+      setError(err instanceof Error ? err.message : "Failed to load dataset");
     } finally {
       setLoading(false);
     }
@@ -90,9 +88,7 @@ export default function DatasetDetailPage() {
         {/* Header */}
         <div className="flex items-start justify-between mb-8">
           <div>
-            <h1 className="text-2xl font-bold text-stellar mb-1">
-              Dataset Details
-            </h1>
+            <h1 className="text-2xl font-bold text-stellar mb-1">Dataset Details</h1>
             <p className="text-sm text-gray-500 font-mono">ID: {id}</p>
             {membership && (
               <div className="mt-2">
@@ -148,9 +144,7 @@ export default function DatasetDetailPage() {
             <div>
               <p className="text-xs text-gray-500 mb-1">Anchored</p>
               <p className="text-sm text-gray-700">
-                {dataset.anchored_at
-                  ? new Date(dataset.anchored_at).toLocaleString()
-                  : "—"}
+                {dataset.anchored_at ? new Date(dataset.anchored_at).toLocaleString() : "—"}
               </p>
             </div>
             <div>
@@ -162,10 +156,7 @@ export default function DatasetDetailPage() {
                 {membership ? "Batch Transaction" : "Transaction"}
               </p>
               {dataset.stellar_tx_hash ? (
-                <TxExplorerLink
-                  txHash={dataset.stellar_tx_hash}
-                  network={network ?? "testnet"}
-                />
+                <TxExplorerLink txHash={dataset.stellar_tx_hash} network={network ?? "testnet"} />
               ) : (
                 <span className="text-sm text-gray-300">—</span>
               )}
@@ -176,9 +167,7 @@ export default function DatasetDetailPage() {
             <>
               <hr className="border-gray-100" />
               <div>
-                <p className="text-xs text-gray-500 mb-1">
-                  Explorer Link
-                </p>
+                <p className="text-xs text-gray-500 mb-1">Explorer Link</p>
                 <a
                   href={dataset.explorer_url}
                   target="_blank"
@@ -196,13 +185,10 @@ export default function DatasetDetailPage() {
         {membership && (
           <div className="card mt-6 space-y-4">
             <div>
-              <h2 className="text-sm font-semibold text-gray-700">
-                Batch Membership
-              </h2>
+              <h2 className="text-sm font-semibold text-gray-700">Batch Membership</h2>
               <p className="text-sm text-gray-500 mt-1">
-                This dataset has no standalone on-chain record. A batch root
-                covers it, and this inclusion proof is what proves it was
-                anchored.
+                This dataset has no standalone on-chain record. A batch root covers it, and this
+                inclusion proof is what proves it was anchored.
               </p>
             </div>
 

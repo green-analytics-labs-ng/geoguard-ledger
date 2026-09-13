@@ -125,5 +125,4 @@ export interface CsvPreview {
   totalRows: number;
 }
 
-export type SubmissionStep =
-  "upload" | "preview" | "ai-report" | "sign" | "confirmed";
+export type SubmissionStep = "upload" | "preview" | "ai-report" | "sign" | "confirmed";

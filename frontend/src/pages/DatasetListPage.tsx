@@ -31,10 +31,7 @@ export default function DatasetListPage() {
                 : `${datasets.length} dataset${datasets.length !== 1 ? "s" : ""} anchored`}
             </p>
           </div>
-          <button
-            onClick={() => navigate("/upload")}
-            className="btn-primary"
-          >
+          <button onClick={() => navigate("/upload")} className="btn-primary">
             Upload New Dataset
           </button>
         </div>

@@ -5,7 +5,12 @@ interface Props {
   className?: string;
 }
 
-export default function TxExplorerLink({ txHash, network = "testnet", label, className = "" }: Props) {
+export default function TxExplorerLink({
+  txHash,
+  network = "testnet",
+  label,
+  className = "",
+}: Props) {
   const base =
     network === "mainnet"
       ? "https://stellar.expert/explorer/public"
