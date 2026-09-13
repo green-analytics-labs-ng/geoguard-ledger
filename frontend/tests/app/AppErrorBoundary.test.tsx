@@ -28,14 +28,16 @@ vi.mock("../../src/pages/DashboardPage", () => ({
 import App from "../../src/App";
 
 describe("App error boundary", () => {
-  it("shows a recoverable fallback instead of a blank screen", () => {
+  it("shows a recoverable fallback instead of a blank screen", async () => {
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
     freighter.isAllowed.mockResolvedValue({ isAllowed: false });
 
     window.history.pushState({}, "", "/");
     render(<App />);
 
-    expect(screen.getByRole("alert")).toBeTruthy();
+    // Routes are lazy, so the throwing page is only rendered once its chunk
+    // resolves; the boundary's fallback therefore appears asynchronously.
+    expect(await screen.findByRole("alert")).toBeTruthy();
     expect(screen.getByText("Something went wrong")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Try again" })).toBeTruthy();
 
