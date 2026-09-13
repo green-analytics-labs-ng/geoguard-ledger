@@ -48,3 +48,90 @@ jobs:
           if [ "$SIZE" -gt 65536 ]; then
             echo "::warning::WASM size exceeds 64KB. Consider optimization."
           fi
+
+  fuzz:
+    name: Fuzz verify_inclusion
+    runs-on: ubuntu-latest
+    # Fuzzing code that fails its own test suite only wastes CI minutes.
+    needs: test
+    defaults:
+      run:
+        working-directory: contracts/geoguard-ledger
+    steps:
+      - uses: actions/checkout@v7
+
+      # libFuzzer needs nightly: cargo-fuzz builds with `-Zsanitizer`.
+      - name: Install nightly Rust toolchain
+        uses: dtolnay/rust-toolchain@nightly
+
+      - name: Cache cargo-fuzz
+        id: cargo-fuzz
+        uses: actions/cache@v6
+        with:
+          path: ~/.cargo/bin/cargo-fuzz
+          key: ${{ runner.os }}-cargo-fuzz-0.13.2
+
+      - name: Install cargo-fuzz
+        if: steps.cargo-fuzz.outputs.cache-hit != 'true'
+        run: cargo install cargo-fuzz --version 0.13.2 --locked
+
+      - name: Cache fuzz build
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            contracts/geoguard-ledger/fuzz/target
+          key: ${{ runner.os }}-cargo-fuzz-target-${{ hashFiles('contracts/geoguard-ledger/fuzz/Cargo.lock', 'contracts/geoguard-ledger/Cargo.lock') }}
+
+      # `fuzz/` compiles the contract's own src/lib.rs but resolves its
+      # dependencies from its own lockfile. A silent divergence would mean the
+      # fuzzer was exercising a different soroban-sdk than the contract ships,
+      # which would quietly invalidate every result below.
+      - name: Fail if the fuzz lock drifts from the contract lock
+        run: |
+          python3 - <<'PY'
+          import re
+          import sys
+
+          def versions(path):
+              text = open(path).read()
+              return dict(re.findall(
+                  r'\[\[package\]\]\nname = "([^"]+)"\nversion = "([^"]+)"', text))
+
+          contract = versions("Cargo.lock")
+          fuzz = versions("fuzz/Cargo.lock")
+          drifted = [
+              f"  {pkg}: contract {contract.get(pkg)} vs fuzz {fuzz.get(pkg)}"
+              for pkg in sorted(set(contract) | set(fuzz))
+              if pkg.startswith(("soroban-", "stellar-xdr"))
+              and contract.get(pkg) != fuzz.get(pkg)
+          ]
+          if drifted:
+              print("::error::fuzz/Cargo.lock has drifted from Cargo.lock")
+              print("\n".join(drifted))
+              sys.exit(1)
+          print("fuzz lock agrees with the contract lock")
+          PY
+
+      # `--sanitizer none` is deliberate. AddressSanitizer targets memory errors
+      # in code this project does not own (the contract is safe Rust; the host is
+      # upstream), while it triples the build (13min -> 3.5min) and costs 4x the
+      # executions (113/s -> 495/s). The bug classes this harness hunts are
+      # logic divergences, found by its assertions rather than by ASAN. Run
+      # `cargo fuzz run verify_inclusion` locally for the ASAN build.
+      - name: Build the fuzz target
+        run: cargo +nightly fuzz build --sanitizer none verify-inclusion
+
+      # 60s is a regression guard, not a bug hunt: it re-checks the paths this
+      # harness reaches on every contract change. Run it longer locally.
+      - name: Fuzz for 60s
+        run: cargo +nightly fuzz run --sanitizer none verify-inclusion -- -max_total_time=60 -print_final_stats=1
+
+      - name: Upload crash artifacts
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: fuzz-crash-artifacts
+          path: contracts/geoguard-ledger/fuzz/artifacts/
+          if-no-files-found: ignore
