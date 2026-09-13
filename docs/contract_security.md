@@ -161,10 +161,12 @@ contract ships would be worse than no fuzzer.
 
 ### Throughput, and why the design looks like this
 
-Under the fuzzer a case runs at roughly **450/s**, so CI's 60-second budget buys
-about **27,000 cases** (about 6,900 under the slower ASAN default) — and since
-each case makes 18 verification calls, roughly **half a million verifications**
-per run. Two measured choices get it there:
+The rate is machine-dependent: the first CI run executed **43,626 cases in 60
+seconds** (~715/s) with `--sanitizer none`, while a local run on this machine
+managed ~450/s. Either way the budget buys tens of thousands of cases per run —
+and since each case makes 18 verification calls, **several hundred thousand
+verifications per minute**. The ASAN default is about 4x slower (113/s measured
+locally, ~6,900 cases). Two measured choices get it there:
 
 - **One `Env` per case, many verifications per `Env`.** A fresh `Env` — register,
   initialize, anchor — costs about **0.38ms**, while a single `verify_inclusion`
