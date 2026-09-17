@@ -20,13 +20,44 @@ from stellar_sdk import (
 from stellar_sdk import (
     Address as StellarAddress,
 )
-from stellar_sdk.exceptions import NotFoundError
+from stellar_sdk.exceptions import AccountNotFoundException, NotFoundError
 from stellar_sdk.soroban_server import GetTransactionStatus
 from stellar_sdk.xdr import SCValType
 
 from app.config import settings
+from app.core.exceptions import SubmitterAccountNotFoundError
 
 logger = logging.getLogger(__name__)
+
+# ── Network funding ───────────────────────────────────────────────
+# The network passphrase is the only thing here that separates Testnet from
+# Mainnet, and Friendbot's faucet exists on Testnet only — Mainnet accounts have
+# to be funded with real XLM, so the hint has to differ per network.
+TESTNET_NETWORK_PASSPHRASE = "Test SDF Network ; September 2015"
+FRIENDBOT_URL = "https://friendbot.stellar.org"
+
+
+def _unfunded_submitter_error(submitter_address: str) -> SubmitterAccountNotFoundError:
+    """Build a user-actionable error for a submitter with no on-chain account.
+
+    An anchor transaction uses the submitter as its source, so the account has
+    to exist on-chain to supply a sequence number. A newly generated wallet is
+    not an account until something funds it — the normal state for a first-time
+    user, and one the SDK reports without any hint of how to resolve it.
+    """
+    if settings.soroban_network_passphrase == TESTNET_NETWORK_PASSPHRASE:
+        return SubmitterAccountNotFoundError(
+            f"Your Stellar account {submitter_address} is not funded on Testnet, so "
+            f"it has no sequence number to sign the anchor with. Fund it at "
+            f"{FRIENDBOT_URL}?addr={submitter_address} (free testnet XLM), then "
+            f"reconnect your wallet and try again."
+        )
+    return SubmitterAccountNotFoundError(
+        f"Your Stellar account {submitter_address} does not exist on Mainnet. It "
+        f"must be funded with at least the base reserve before it can sign the "
+        f"anchor transaction."
+    )
+
 
 # ── Anomaly score fixed-point conversion ──────────────────────────
 # The contract stores anomaly_score as u32 in 0–10000 range
@@ -152,7 +183,8 @@ async def _build_and_prepare_unsigned(
        the frontend only has to sign it.
 
     Raises:
-        ValueError: If ``CONTRACT_ID`` is unset or the account does not exist.
+        ValueError: If ``CONTRACT_ID`` is unset.
+        SubmitterAccountNotFoundError: If the submitter has no on-chain account.
         RuntimeError: If simulation fails or the contract rejects the call.
     """
     if not settings.contract_id:
@@ -164,11 +196,12 @@ async def _build_and_prepare_unsigned(
     #    Offloaded to thread pool to avoid blocking the event loop.
     try:
         source_account: Account = await asyncio.to_thread(server.load_account, submitter_address)
-    except NotFoundError:
-        raise ValueError(
-            f"Account {submitter_address} not found on-chain. "
-            "Ensure the account exists and is funded on the Stellar network."
-        ) from None
+    except (AccountNotFoundException, NotFoundError):
+        # `AccountNotFoundException` is what the SDK actually raises and it
+        # derives from `SdkError`, not from `NotFoundError`, so catching only
+        # the latter let it escape as an unhandled 500. Both are named because
+        # `NotFoundError` is still the documented base for other RPC lookups.
+        raise _unfunded_submitter_error(submitter_address) from None
 
     # 2. Build the transaction envelope (v15: build() returns TransactionEnvelope directly)
     envelope = (

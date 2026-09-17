@@ -7,6 +7,8 @@ import SubmissionStepper from "./SubmissionStepper";
 import AnomalyBadge from "./AnomalyBadge";
 import AnomalyWarnings from "./AnomalyWarnings";
 import TxExplorerLink from "./TxExplorerLink";
+import ErrorBanner from "./ErrorBanner";
+import { apiErrorMessage } from "../utils/errors";
 import type { CsvPreview, SubmissionStep, DatasetCreateResponse, SubmitResponse } from "../types";
 
 /**
@@ -48,7 +50,7 @@ export default function SingleAnchorFlow() {
       setCreateResponse(result);
       setStep("ai-report");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to process dataset");
+      setError(apiErrorMessage(err, "Failed to process dataset"));
     } finally {
       setProcessing(false);
     }
@@ -68,7 +70,7 @@ export default function SingleAnchorFlow() {
       const result = await submitDataset(createResponse.dataset_id, signedXdr);
       setSubmitResponse(result);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Submission failed";
+      const message = apiErrorMessage(err, "Submission failed");
       if (message.includes("User rejected")) {
         setStep("sign");
         setError("Transaction was rejected in Freighter. Please try again.");
@@ -98,11 +100,7 @@ export default function SingleAnchorFlow() {
       </div>
 
       {/* Error */}
-      {error && (
-        <div className="mb-6 bg-red-50 border border-red-200 text-red-700 rounded-lg p-4 text-sm">
-          {error}
-        </div>
-      )}
+      {error && <ErrorBanner message={error} className="mb-6" />}
 
       {/* Step: Upload */}
       {step === "upload" && (

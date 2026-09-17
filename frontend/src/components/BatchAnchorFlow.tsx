@@ -9,6 +9,8 @@ import AnomalyBadge from "./AnomalyBadge";
 import AnomalyWarnings from "./AnomalyWarnings";
 import TxExplorerLink from "./TxExplorerLink";
 import { ProofPath } from "./MerkleProof";
+import ErrorBanner from "./ErrorBanner";
+import { apiErrorMessage } from "../utils/errors";
 import type {
   BatchCreateResponse,
   BatchSubmitResponse,
@@ -20,16 +22,6 @@ import type {
 interface BatchMember {
   dataset: DatasetCreateResponse;
   fileName: string;
-}
-
-/** Prefer the backend's `detail` message over axios's generic status text. */
-function apiErrorMessage(err: unknown, fallback: string): string {
-  if (typeof err === "object" && err !== null) {
-    const response = (err as { response?: { data?: { detail?: unknown } } }).response;
-    const detail = response?.data?.detail;
-    if (typeof detail === "string" && detail.length > 0) return detail;
-  }
-  return err instanceof Error ? err.message : fallback;
 }
 
 interface MembersProps {
@@ -185,11 +177,7 @@ export default function BatchAnchorFlow() {
         <SubmissionStepper currentStep={step} />
       </div>
 
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg p-4 text-sm">
-          {error}
-        </div>
-      )}
+      {error && <ErrorBanner message={error} />}
 
       {/* Step: Upload — collect datasets into the batch */}
       {step === "upload" && (

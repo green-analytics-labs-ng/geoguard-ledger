@@ -10,4 +10,5 @@ export { default as DatasetTable } from "./DatasetTable";
 export { default as BatchBadge } from "./BatchBadge";
 export { default as MerkleProof } from "./MerkleProof";
 export { default as VerificationResult } from "./VerificationResult";
+export { default as ErrorBanner } from "./ErrorBanner";
 export { default as ErrorBoundary } from "./ErrorBoundary";

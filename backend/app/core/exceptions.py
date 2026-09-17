@@ -18,6 +18,20 @@ class ContractError(GeoGuardError):
     pass
 
 
+class SubmitterAccountNotFoundError(GeoGuardError):
+    """The submitter's Stellar account does not exist on the network yet.
+
+    An anchor transaction takes the submitter as its source, so the account must
+    already exist on-chain to supply a sequence number. A freshly generated
+    wallet is not an account until something funds it, which makes this the
+    normal state for a new user rather than a server fault — so it reports 400
+    and names the action that resolves it.
+    """
+
+    def __init__(self, message: str):
+        super().__init__(message, status_code=400)
+
+
 class HasherError(GeoGuardError):
     """CSV hashing / canonicalization error."""
 
