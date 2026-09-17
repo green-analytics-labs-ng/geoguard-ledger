@@ -25,8 +25,11 @@ RUN uv sync --frozen
 
 EXPOSE 8000
 
-# Migrations run before the server accepts a request, because the app no longer
-# creates its own schema: a database that is behind fails here, at boot, with
-# Alembic's own diagnostics, rather than at the first query. `exec` replaces the
-# shell so uvicorn is PID 1 and receives stop signals directly.
-CMD ["sh", "-c", "uv run alembic upgrade head && exec uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"]
+# The server only serves. Migrations are a separate step — the `migrate` service
+# in docker-compose.yml locally, a pre-rollout job in production — because a
+# boot-time `alembic upgrade head` runs once *per replica*, and replicas starting
+# together would race each other through the same DDL. docs/deployment.md has the
+# runbook. The app still does not create its own schema, so a database that is
+# behind fails at the first query with UndefinedTableError rather than quietly
+# acquiring tables no migration accounts for.
+CMD ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]

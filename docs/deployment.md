@@ -269,16 +269,29 @@ no recorded revision: Alembic then treats the database as empty, and
 in that state cannot be migrated at all until it is stamped (see the repair
 below).
 
-The backend container therefore migrates **before** it serves, in one command:
+Migrations therefore run as their **own step, before any server starts** — never
+inside the backend's command. The image is a plain `uvicorn`:
 
 ```bash
-uv run alembic upgrade head && exec uv run uvicorn app.main:app ...
+uv run alembic upgrade head     # the step that has to run first, once
+uv run uvicorn app.main:app ...  # the image's CMD, nothing else
 ```
 
-A database that is behind fails there, at boot, with Alembic's own diagnostics —
-not at the first request, and not by silently acquiring a schema. When several
-replicas run, migrations on boot would race each other; run them as a separate
-step ahead of the rollout instead of letting each instance do it.
+Putting the migration into the boot command looks tidier and behaves worse: that
+command runs once **per replica**, so instances starting together would apply the
+same DDL concurrently. One step that runs once cannot race itself.
+
+Locally, compose models that ordering for you. `docker compose up` starts the
+one-shot `migrate` service, waits for it to exit 0, and only then starts the
+backend (`depends_on: migrate: service_completed_successfully`) — which is also
+why the stack still comes up from an empty database.
+
+For a deployment, the equivalent is a migration job ahead of the rollout: run
+`alembic upgrade head` to completion once, then start or replace replicas. A
+database that is behind fails in that job, with Alembic's own diagnostics, rather
+than at the first request of whichever replica takes traffic first — and because
+the schema no longer changes underneath a starting server, a failed migration can
+stop the rollout before any replica serves the new code.
 
 For a one-off or a manual host:
 

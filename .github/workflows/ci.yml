@@ -159,7 +159,7 @@ jobs:
         run: python3 scripts/generate_logo.py --check
 
   schema-boot:
-    name: Backend - Migrations Before Boot
+    name: Backend - Schema From Migrations
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -192,12 +192,15 @@ jobs:
       - name: Install dependencies
         run: uv sync --dev
 
-      # Two properties, both of which have silently broken this project before:
+      # Three properties, all of which have silently broken this project before:
       # starting the app must not create tables (that leaves a database with no
       # recorded revision, and `alembic upgrade head` then fails on it forever),
-      # and the command the backend image runs must migrate before it serves.
-      # The check boots against empty scratch databases and drops them again.
-      - name: Check the boot sequence against an empty database
+      # the boot command must not run migrations (that runs once per replica, so
+      # replicas starting together race through the same DDL), and the migration
+      # step plus the boot command must together bring an empty database to a
+      # serving state. Both commands are read out of the files that ship, and run
+      # against empty scratch databases that are dropped again afterwards.
+      - name: Check the migration step and the boot sequence
         run: uv run python ../scripts/check_boot_migrations.py
         env:
           DATABASE_URL: postgresql+asyncpg://geoguard:geoguard_dev@localhost:5432/geoguard_ledger

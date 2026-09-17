@@ -121,14 +121,15 @@ This installs all dependencies, starts PostgreSQL via Docker, runs migrations, d
 
 ### Database Migrations
 
-The schema belongs to Alembic. The backend does **not** create tables on
-startup, so a database that has not been migrated fails at the first query with
-`UndefinedTableError: relation "datasets" does not exist` — rather than quietly
+The schema belongs to Alembic. The backend does **not** create tables on startup,
+and it does not run migrations either — a boot-time migration would run once per
+replica. So a database that has not been migrated fails at the first query with
+`UndefinedTableError: relation "datasets" does not exist`, rather than quietly
 acquiring tables that no migration accounts for.
 
-`docker compose up` is handled for you: the backend container runs migrations
-before it starts serving. Starting the API on its own, or working outside
-Docker, is not:
+`docker compose up` is handled for you: a one-shot `migrate` container applies
+them and the backend waits for it to finish before it starts. Starting the API on
+its own, or working outside Docker, is not:
 
 ```bash
 cd backend

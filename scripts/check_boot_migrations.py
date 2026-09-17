@@ -1,20 +1,27 @@
 #!/usr/bin/env python3
-"""Check that starting the backend leaves a database migrated, not just usable.
+"""Check that the schema comes from the migration step, and only from there.
 
-Two regressions are guarded here, both of which have happened in this repository:
+Three regressions are guarded here, all of which have happened in this
+repository:
 
 1. **The app creating its own schema.** `Base.metadata.create_all` on startup made
    an empty database work, but left it with no `alembic_version` row — so no
    migration could ever be applied to it again, and `alembic upgrade head` failed
    with `relation "datasets" already exists`. The app must not create tables.
 
-2. **The boot command losing its migration step.** With the schema owned by
-   Alembic, `uvicorn` alone on a database that is behind boots "successfully" and
-   fails at the first request. The command the container runs must migrate first,
-   so this reads the command out of `backend/Dockerfile` and runs *that*, rather
-   than a copy of it that can drift away from the real one.
+2. **Migrations running in the boot command.** `alembic upgrade head && uvicorn`
+   looks convenient and is a race: it runs once *per replica*, so instances
+   starting together apply the same DDL concurrently. Migrations belong in their
+   own step, and the command the backend actually starts with must not run them.
 
-Both checks run against scratch databases created on the server in
+3. **The migration step going missing, or drifting from the boot command.** The
+   two commands are read out of the files that ship — the compose service that
+   runs `alembic upgrade`, and the Dockerfile's CMD (or the compose `command:`
+   that replaces it) — and run in order against an empty scratch database, which
+   must end up serving with every model table present, stamped at head, and free
+   of drift.
+
+Checks 1 and 3 run against scratch databases created on the server in
 `DATABASE_URL`, and dropped again afterwards. Nothing else there is touched.
 
 Usage:
@@ -29,6 +36,7 @@ import asyncio
 import json
 import os
 import re
+import shlex
 import signal
 import subprocess
 import sys
@@ -40,10 +48,20 @@ from urllib.parse import urlsplit, urlunsplit
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 BACKEND_DIR = REPO_ROOT / "backend"
+COMPOSE_FILE = REPO_ROOT / "docker-compose.yml"
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
 import asyncpg  # noqa: E402
+
+try:
+    import yaml  # noqa: E402
+except ImportError:  # pragma: no cover - the check must not pass quietly
+    raise SystemExit(
+        "PyYAML is needed to read the migration step out of docker-compose.yml. It "
+        "arrives with uvicorn[standard]; declare it in the dev dependencies if that "
+        "ever stops being true."
+    ) from None
 
 from app.config import settings  # noqa: E402
 from app.db.base import Base  # noqa: E402
@@ -140,9 +158,6 @@ class Server:
                 self.process.wait(timeout=15)
         self.log.close()
 
-    def died_early(self) -> bool:
-        return self.process is not None and self.process.poll() is not None
-
     def log_tail(self, lines: int = 15) -> str:
         """The end of the server's output, for when a check fails."""
         try:
@@ -168,10 +183,29 @@ def _wait_for_status(url: str, timeout: float = STARTUP_TIMEOUT_SECONDS) -> int:
     raise TimeoutError(f"nothing answered {url} within {timeout:.0f}s ({last_error})")
 
 
-# ── The boot command, read from the Dockerfile ────────────────────
+# ── The shipped commands, read from the files that own them ───────
 
 
-def _container_boot_command() -> str:
+def _as_command(value: object) -> str | None:
+    """A compose command as one shell string, however it was written."""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, list) and all(isinstance(part, str) for part in value):
+        # Compose itself normalises `command: uv run alembic upgrade head` to a list.
+        return " ".join(shlex.quote(part) for part in value)
+    return None
+
+
+def _compose_services() -> dict[str, object]:
+    """The compose services, keyed by name."""
+    parsed = yaml.safe_load(COMPOSE_FILE.read_text())
+    services = (parsed or {}).get("services")
+    if not isinstance(services, dict) or not services:
+        raise SystemExit(f"{COMPOSE_FILE} declares no services.")
+    return services
+
+
+def _image_boot_command() -> str:
     """The shell command the backend image runs, straight from its Dockerfile."""
     dockerfile = BACKEND_DIR / "Dockerfile"
     match = re.search(r"^CMD\s+(\[.*\])\s*$", dockerfile.read_text(), re.MULTILINE)
@@ -182,12 +216,48 @@ def _container_boot_command() -> str:
         )
 
     argv = json.loads(match.group(1))
-    if len(argv) != 3 or argv[:2] != ["sh", "-c"]:
+    if not isinstance(argv, list) or not argv or not all(isinstance(part, str) for part in argv):
         raise SystemExit(
-            f'Expected a CMD of the form ["sh", "-c", "..."], found {argv!r}. '
+            f"Expected a JSON array of strings in {dockerfile}'s CMD, found {argv!r}. "
             "This check runs that command against an empty database."
         )
-    return argv[2]
+    if argv[:2] == ["sh", "-c"] and len(argv) == 3:
+        return argv[2]
+    # Exec form: quote it back into the single string this check runs.
+    return " ".join(shlex.quote(part) for part in argv)
+
+
+def _backend_boot_command() -> str:
+    """What the backend actually starts with.
+
+    A `command:` in compose replaces the image's CMD, so the effective command is
+    whichever of the two is set — and this has to test the one that really runs,
+    not the image's idea of it.
+    """
+    service = _compose_services().get("backend")
+    if isinstance(service, dict):
+        command = _as_command(service.get("command"))
+        if command:
+            return command
+    return _image_boot_command()
+
+
+def _migration_command() -> str:
+    """The migration step as it ships: the compose service that upgrades the schema.
+
+    Found by what it runs rather than by name, so renaming the service keeps this
+    working while deleting the step does not.
+    """
+    for service in _compose_services().values():
+        if not isinstance(service, dict):
+            continue
+        command = _as_command(service.get("command"))
+        if command and "alembic" in command and "upgrade" in command:
+            return command
+    raise AssertionError(
+        f"{COMPOSE_FILE} has no service running `alembic upgrade`, so nothing applies "
+        "migrations. They have to be their own step — see docs/deployment.md."
+    )
 
 
 # ── The checks ────────────────────────────────────────────────────
@@ -230,14 +300,46 @@ async def check_app_does_not_create_schema(url: str, admin_dsn: str, database: s
         server.stop()
 
 
-async def check_boot_command_migrates(url: str, admin_dsn: str, database: str) -> None:
-    """The container's boot command must leave the database migrated and stamped."""
+async def check_boot_command_leaves_migrations_out(
+    _url: str, _admin_dsn: str, _database: str
+) -> None:
+    """The boot command must not run migrations. This one needs no database."""
+    command = _backend_boot_command()
+    if "alembic" in command:
+        raise AssertionError(
+            f"the backend's boot command runs Alembic:\n    {command}\n"
+            "A boot-time migration runs once per replica, so instances starting "
+            "together apply the same DDL concurrently. Migrations belong in their own "
+            "step — the `migrate` service in docker-compose.yml, or a pre-rollout job "
+            "in production."
+        )
+
+
+async def check_deploy_step_then_boot(url: str, admin_dsn: str, database: str) -> None:
+    """The migration step, then the boot command, must leave a database serving."""
     await _recreate_database(admin_dsn, database)
 
     database_url = _at_database(url, database)
     dsn = _as_dsn(database_url)
+
+    # The deploy step, run the way compose runs it: its own process, exactly once,
+    # before any server starts.
+    step = subprocess.run(
+        _migration_command(),
+        shell=True,
+        cwd=BACKEND_DIR,
+        env={**os.environ, "DATABASE_URL": database_url},
+        capture_output=True,
+        text=True,
+    )
+    if step.returncode != 0:
+        raise AssertionError(
+            "the migration step failed against an empty database:\n"
+            f"{step.stdout.strip()}\n{step.stderr.strip()}"
+        )
+
     server = Server(
-        command=_container_boot_command(),
+        command=_backend_boot_command(),
         database_url=database_url,
         log_path=Path(f"/tmp/{database}-server.log"),
     )
@@ -246,32 +348,30 @@ async def check_boot_command_migrates(url: str, admin_dsn: str, database: str) -
         try:
             status = _wait_for_status(f"http://127.0.0.1:{CONTAINER_PORT}/api/v1/datasets")
         except TimeoutError as exc:
-            if server.died_early():
-                raise AssertionError(
-                    "the container's boot command exited instead of serving. Without a "
-                    "migration step the server starts and then fails at the first "
-                    "query.\n"
-                    f"--- server output ---\n{server.log_tail()}"
-                ) from exc
-            raise
+            raise AssertionError(
+                "the boot command never answered, even though the migration step "
+                f"succeeded.\n--- server output ---\n{server.log_tail()}"
+            ) from exc
         if status != 200:
             raise AssertionError(
-                f"the boot command served HTTP {status} for a database-backed request.\n"
-                f"--- server output ---\n{server.log_tail()}"
+                f"the boot command served HTTP {status} for a database-backed request "
+                "after the migration step ran, so the two no longer agree on the "
+                f"schema.\n--- server output ---\n{server.log_tail()}"
             )
 
         tables = await _public_tables(dsn)
         missing = _model_tables() - tables
         if missing:
             raise AssertionError(
-                f"the boot command left the schema incomplete; missing {sorted(missing)}"
+                f"the migration step left the schema incomplete; missing {sorted(missing)}"
             )
 
         stamped = await _fetchval(dsn, "SELECT version_num FROM alembic_version")
         if stamped is None:
             raise AssertionError(
-                "the boot command left the database unstamped (no alembic_version row) — "
-                "the state that makes `alembic upgrade head` impossible from then on."
+                "the migration step left the database unstamped (no alembic_version "
+                "row) — the state that makes `alembic upgrade head` impossible from "
+                "then on."
             )
 
         head = subprocess.run(
@@ -283,8 +383,8 @@ async def check_boot_command_migrates(url: str, admin_dsn: str, database: str) -
         ).stdout.split()[0]
         if stamped != head:
             raise AssertionError(
-                f"the boot command left the database on {stamped}, not the head revision "
-                f"{head}: migrations did not run."
+                f"the migration step left the database on {stamped}, not the head "
+                f"revision {head}: migrations did not run."
             )
     finally:
         server.stop()
@@ -317,7 +417,8 @@ async def main() -> int:
 
     checks = [
         ("the app does not create its own schema", check_app_does_not_create_schema),
-        ("the container's boot command migrates before serving", check_boot_command_migrates),
+        ("the boot command does not run migrations", check_boot_command_leaves_migrations_out),
+        ("the migration step prepares what the boot command serves", check_deploy_step_then_boot),
     ]
     databases = [f"geoguard_bootcheck_{index}" for index in range(len(checks))]
 

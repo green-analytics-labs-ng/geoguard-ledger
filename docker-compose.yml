@@ -17,6 +17,26 @@ services:
       timeout: 5s
       retries: 5
 
+  # Migrations are their own one-shot service rather than part of the backend's
+  # boot command. There is exactly one of these, so it cannot race itself the way
+  # several replicas each running `alembic upgrade head` on startup would. A
+  # database that is behind fails here, with Alembic's own diagnostics, before
+  # any server tries to read it.
+  migrate:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: uv run alembic upgrade head
+    environment:
+      DATABASE_URL: postgresql+asyncpg://geoguard:geoguard_dev@db:5432/geoguard_ledger
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+      - /app/.venv
+    restart: "no"
+
   backend:
     build:
       context: ./backend
@@ -35,6 +55,11 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      # The backend waits for migrations to exit 0, so `docker compose up` still
+      # works from an empty database without the server ever serving a schema
+      # that is halfway migrated.
+      migrate:
+        condition: service_completed_successfully
     volumes:
       - ./backend:/app
       # Keep the image's virtualenv rather than the host's. The two are built
