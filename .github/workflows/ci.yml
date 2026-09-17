@@ -158,6 +158,50 @@ jobs:
       - name: Check the committed logo is current
         run: python3 scripts/generate_logo.py --check
 
+  schema-boot:
+    name: Backend - Migrations Before Boot
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: geoguard
+          POSTGRES_PASSWORD: geoguard_dev
+          POSTGRES_DB: geoguard_ledger
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v10.1.0
+
+      - name: Install dependencies
+        run: uv sync --dev
+
+      # Two properties, both of which have silently broken this project before:
+      # starting the app must not create tables (that leaves a database with no
+      # recorded revision, and `alembic upgrade head` then fails on it forever),
+      # and the command the backend image runs must migrate before it serves.
+      # The check boots against empty scratch databases and drops them again.
+      - name: Check the boot sequence against an empty database
+        run: uv run python ../scripts/check_boot_migrations.py
+        env:
+          DATABASE_URL: postgresql+asyncpg://geoguard:geoguard_dev@localhost:5432/geoguard_ledger
+
   commit-attribution:
     name: Commits - No AI Attribution
     runs-on: ubuntu-latest
@@ -175,7 +219,7 @@ jobs:
 
   all-pass:
     name: All Checks Pass
-    needs: [contract-lint-test, backend-lint-test, frontend-lint-test, brand-assets, commit-attribution]
+    needs: [contract-lint-test, backend-lint-test, frontend-lint-test, brand-assets, schema-boot, commit-attribution]
     runs-on: ubuntu-latest
     steps:
       - run: echo "✅ All checks passed"
