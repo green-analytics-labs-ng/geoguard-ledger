@@ -260,6 +260,79 @@ Should you update it again, `CONTRACT_ID` changes in both places; the
 `--contract-id-out` file the deploy script writes is what CI uses to hand the ID
 to the smoke test within a single run.
 
+## Database schema and boot order
+
+The Postgres schema belongs to Alembic, and the backend never creates tables
+itself. That ordering matters, because a table created outside a migration has
+no recorded revision: Alembic then treats the database as empty, and
+`alembic upgrade head` fails on `relation "datasets" already exists`. A database
+in that state cannot be migrated at all until it is stamped (see the repair
+below).
+
+The backend container therefore migrates **before** it serves, in one command:
+
+```bash
+uv run alembic upgrade head && exec uv run uvicorn app.main:app ...
+```
+
+A database that is behind fails there, at boot, with Alembic's own diagnostics —
+not at the first request, and not by silently acquiring a schema. When several
+replicas run, migrations on boot would race each other; run them as a separate
+step ahead of the rollout instead of letting each instance do it.
+
+For a one-off or a manual host:
+
+```bash
+cd backend
+uv run alembic current          # what this database is on
+uv run alembic upgrade head     # bring it up to date (a no-op when it is)
+uv run alembic check            # does the schema still match the models?
+```
+
+`alembic check` is also a CI gate, so a model change with no migration fails the
+build rather than reaching a deployment.
+
+### Rolling a migration back
+
+```bash
+uv run alembic downgrade -1
+```
+
+Check the migration's `downgrade()` before running it: it has to undo whatever
+`upgrade()` did, and some of that cannot be undone faithfully. `b3d7c1a9f204`
+(which allows a dataset to exist before it is anchored) is the case to watch —
+rolling it back restores `submitter_address`'s `NOT NULL`, so it **deletes
+analyzed datasets that were never anchored**, since they have no address to
+restore. They were never submitted, so nothing on-chain refers to them, but any
+draft work on that host is gone.
+
+### Repairing an unstamped database
+
+Recognise it by the missing version table combined with tables that exist:
+
+```sql
+SELECT * FROM alembic_version;   -- ERROR: relation does not exist
+\dt                              -- datasets, batches
+```
+
+`alembic stamp` writes the version table without running any DDL, so the fix is
+to record the revision the schema already is, then upgrade from there:
+
+```bash
+# Which revision? Compare against a database migrated from scratch:
+#   createdb geoguard_fresh
+#   DATABASE_URL=...geoguard_fresh uv run alembic upgrade head
+#   pg_dump -s both and diff — column *order* is the giveaway: create_all
+#   leaves columns in model-declaration order, migrations append them.
+uv run alembic stamp 849a9e96fe36
+uv run alembic upgrade head
+uv run alembic check             # clean here means you stamped the right one
+```
+
+A clean `alembic check` is the proof the repair worked, and it is cheap to run
+before committing to anything: it exits non-zero on any drift the models and the
+database disagree about.
+
 ## Secrets
 
 | Name | Used by | Can it harm anything? |

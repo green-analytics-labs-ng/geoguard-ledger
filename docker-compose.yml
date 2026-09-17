@@ -37,6 +37,12 @@ services:
         condition: service_healthy
     volumes:
       - ./backend:/app
+      # Keep the image's virtualenv rather than the host's. The two are built
+      # for different interpreters, so an exposed host `.venv` makes `uv run`
+      # rebuild the environment inside the mount — deleting the developer's own
+      # `.venv` on every `docker compose up` and taking ~45s over it. The
+      # frontend service guards node_modules the same way.
+      - /app/.venv
 
   frontend:
     build:

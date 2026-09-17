@@ -119,6 +119,40 @@ locally before pushing:
 
 This installs all dependencies, starts PostgreSQL via Docker, runs migrations, deploys a local Soroban instance, and starts the dev servers.
 
+### Database Migrations
+
+The schema belongs to Alembic. The backend does **not** create tables on
+startup, so a database that has not been migrated fails at the first query with
+`UndefinedTableError: relation "datasets" does not exist` — rather than quietly
+acquiring tables that no migration accounts for.
+
+`docker compose up` is handled for you: the backend container runs migrations
+before it starts serving. Starting the API on its own, or working outside
+Docker, is not:
+
+```bash
+cd backend
+uv run alembic upgrade head    # apply everything outstanding
+uv run alembic current         # which revision this database is on
+uv run alembic check           # does the schema still match the models?
+```
+
+If you change a model, generate its migration in the same change. CI runs
+`alembic check` and fails when the models would require an operation no
+migration describes:
+
+```bash
+uv run alembic revision --autogenerate -m "add whatever column"
+uv run alembic upgrade head
+```
+
+A database that has tables but no `alembic_version` table cannot be upgraded at
+all — Alembic takes it for empty and the first migration fails on
+`relation "datasets" already exists`. That state came from the app creating its
+own schema, which it no longer does; see
+[docs/deployment.md](docs/deployment.md#database-schema-and-boot-order) for the
+repair if you still have one.
+
 ## Communication
 
 - **GitHub Issues:** Bug reports, feature requests, RFCs

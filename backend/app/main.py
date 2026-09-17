@@ -10,7 +10,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.v1 import batches, datasets, health, maintenance, verify
 from app.config import settings
 from app.core.exceptions import register_exception_handlers
-from app.db.base import Base
 from app.db.session import async_engine
 
 logger = getLogger(__name__)
@@ -19,12 +18,11 @@ logger = getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Application lifespan: startup and shutdown events."""
-    # Startup: create tables if they don't exist
-    logger.info("Creating database tables (if not exist)...")
-    async with async_engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    logger.info("Database tables ready.")
-
+    # The schema belongs to Alembic, and migrations are applied before the
+    # server starts (see the Dockerfile's command). Creating tables here would
+    # leave them with no recorded revision, so `alembic upgrade head` would then
+    # refuse to touch a database that already looks non-empty — which is a worse
+    # failure than the missing-table error this avoids.
     yield
 
     # Shutdown: dispose of the database connection pool

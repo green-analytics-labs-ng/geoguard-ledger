@@ -12,6 +12,10 @@ Usage:
     # Or from the repository root with the backend virtualenv active:
     python scripts/seed_db.py
 
+The database must already be migrated (`cd backend && uv run alembic upgrade
+head`), which `scripts/setup_dev.sh` does. The script will not create the schema
+itself — see `_require_schema` for why.
+
 The script is idempotent: a dataset whose hash already exists is skipped, so it
 is safe to run repeatedly against the same database.
 """
@@ -30,8 +34,8 @@ if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
 from sqlalchemy import select  # noqa: E402
+from sqlalchemy.exc import ProgrammingError  # noqa: E402
 
-from app.db.base import Base  # noqa: E402
 from app.db.session import AsyncSessionLocal, async_engine  # noqa: E402
 from app.models.dataset import Dataset  # noqa: E402
 from app.services.anomaly import run_anomaly_detection  # noqa: E402
@@ -113,15 +117,33 @@ def _build_seed_rows() -> list[dict[str, Any]]:
     return rows
 
 
+async def _require_schema() -> None:
+    """Stop with a fixable message when migrations have not been applied.
+
+    The schema belongs to Alembic. Creating the tables here would leave them
+    with no recorded revision, and `alembic upgrade head` would then refuse to
+    touch a database that already has tables — the state that made a dev
+    database unupgradable.
+    """
+    try:
+        async with async_engine.connect() as conn:
+            await conn.execute(select(Dataset.dataset_id).limit(1))
+    except ProgrammingError as exc:
+        print(
+            "The database has no schema yet. Run the migrations first:\n"
+            "    cd backend && uv run alembic upgrade head",
+            file=sys.stderr,
+        )
+        raise SystemExit(1) from exc
+
+
 async def seed() -> int:
     """Insert sample datasets, skipping any that already exist.
 
     Returns:
         The number of datasets inserted.
     """
-    # Ensure the tables exist so seeding works before migrations are applied.
-    async with async_engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    await _require_schema()
 
     inserted = 0
     async with AsyncSessionLocal() as session:
