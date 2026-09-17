@@ -43,8 +43,8 @@ jobs:
       - name: Run tests
         run: cargo test --verbose
 
-  backend-lint-test:
-    name: Backend - Lint & Test
+  migrations:
+    name: Backend - Migrations
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -77,16 +77,13 @@ jobs:
       - name: Install dependencies
         run: uv sync --dev
 
-      - name: Lint with ruff
-        run: uv run ruff check .
-
-      - name: Format check with ruff
-        run: uv run ruff format --check .
-
-      - name: Type check with mypy
-        run: uv run mypy app/
-
-      - name: Check migrations match models
+      # Migrations are applied to a real Postgres once per run, here, instead of
+      # in every job that wants a database. A job's service containers are
+      # private to it, so this database is not the one later jobs connect to —
+      # the backend suite runs on in-memory SQLite regardless. What this job owns
+      # is the migration contract: that the chain applies to Postgres, and that
+      # the models still match what it produces.
+      - name: Apply migrations and check them against the models
         run: |
           uv run alembic upgrade head
 
@@ -97,6 +94,40 @@ jobs:
           uv run alembic check
         env:
           DATABASE_URL: postgresql+asyncpg://geoguard:geoguard_dev@localhost:5432/geoguard_ledger
+
+  backend-lint-test:
+    name: Backend - Lint & Test
+    # The suite runs against in-memory SQLite, so this job needs no database of
+    # its own — it used to carry a Postgres service purely to run Alembic, which
+    # the job above now owns. Waiting on that job means a broken migration fails
+    # before the tests run rather than alongside them.
+    needs: [migrations]
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v10.1.0
+
+      - name: Install dependencies
+        run: uv sync --dev
+
+      - name: Lint with ruff
+        run: uv run ruff check .
+
+      - name: Format check with ruff
+        run: uv run ruff format --check .
+
+      - name: Type check with mypy
+        run: uv run mypy app/
 
       - name: Run tests
         run: uv run pytest --cov=app --cov-report=xml
@@ -222,7 +253,7 @@ jobs:
 
   all-pass:
     name: All Checks Pass
-    needs: [contract-lint-test, backend-lint-test, frontend-lint-test, brand-assets, schema-boot, commit-attribution]
+    needs: [contract-lint-test, migrations, backend-lint-test, frontend-lint-test, brand-assets, schema-boot, commit-attribution]
     runs-on: ubuntu-latest
     steps:
       - run: echo "✅ All checks passed"
