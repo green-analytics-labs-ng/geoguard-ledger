@@ -48,7 +48,7 @@ git checkout -b fix/issue-number
 - If you add an endpoint, update `docs/api_reference.md`
 - If you change a contract function, update `contracts/README.md`
 - If you add a new component, add a brief JSDoc description
-- If you change how anything is deployed or released, update `docs/deployment.md`
+- If you change a brand asset, regenerate it with `scripts/generate_logo.py` ([docs/brand.md](docs/brand.md))
 
 ### 7. Deploying a Contract Change
 

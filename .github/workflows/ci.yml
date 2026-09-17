@@ -139,9 +139,28 @@ jobs:
       - name: Production build
         run: npm run build
 
+  brand-assets:
+    name: Brand - Assets Match Generator
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+
+      # The mark is generated from a single source of truth, so the committed
+      # SVG and PNGs have to stay what the script produces — otherwise editing
+      # the geometry and forgetting to re-run it would leave the README and the
+      # favicon showing a mark the code no longer describes. This needs no
+      # dependencies, hence no `uv sync`: the generator is stdlib only.
+      - name: Check the committed logo is current
+        run: python3 scripts/generate_logo.py --check
+
   all-pass:
     name: All Checks Pass
-    needs: [contract-lint-test, backend-lint-test, frontend-lint-test]
+    needs: [contract-lint-test, backend-lint-test, frontend-lint-test, brand-assets]
     runs-on: ubuntu-latest
     steps:
       - run: echo "✅ All checks passed"

@@ -1,5 +1,9 @@
 <!-- markdownlint-disable MD033 MD041 MD013 -->
 <p align="center">
+  <img src="assets/logo.svg" alt="GeoGuard Ledger" width="160" height="160">
+</p>
+
+<p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="https://img.shields.io/badge/GeoGuard-Ledger-7C3AED?style=for-the-badge&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSJ3aGl0ZSIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxyZWN0IHg9IjMiIHk9IjExIiB3aWR0aD0iMTgiIGhlaWdodD0iMTEiIHJ4PSIyIiByeT0iMiIvPjxwYXRoIGQ9Ik03IDExVjdhNSA1IDAgMCAxIDEwIDB2NCIvPjwvc3ZnPg==">
     <img src="https://img.shields.io/badge/GeoGuard-Ledger-7C3AED?style=for-the-badge&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSJ3aGl0ZSIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxyZWN0IHg9IjMiIHk9IjExIiB3aWR0aD0iMTgiIGhlaWdodD0iMTEiIHJ4PSIyIiByeT0iMiIvPjxwYXRoIGQ9Ik03IDExVjdhNSA1IDAgMCAxIDEwIDB2NCIvPjwvc3ZnPg==" alt="GeoGuard Ledger">
@@ -343,11 +347,13 @@ geoguard-ledger/
 │   │   ├── hooks/              # useWallet, useDatasets, useVerify
 │   │   ├── context/            # WalletContext (Freighter state)
 │   │   └── api/                # Typed API client layer
+│   ├── public/                 # Static assets: icons + link-preview card
 │   └── tests/                  # Vitest + React Testing Library tests
 │
-├── docs/                       # Architecture, API reference, AI model, deployment runbook
+├── docs/                       # Architecture, API reference, AI model, deployment, brand assets
 ├── .github/workflows/          # ci.yml, contract-test.yml, deploy-testnet.yml, release.yml
-├── scripts/                    # setup_dev.sh, deploy_contract.sh, seed_db.py
+├── assets/                     # Brand assets: logo.svg + avatar PNGs
+├── scripts/                    # setup_dev.sh, deploy_contract.sh, seed_db.py, generate_logo.py
 ├── docker-compose.yml          # Multi-service orchestration
 ├── SPECIFICATION.md            # Full technical specification
 └── LICENSE

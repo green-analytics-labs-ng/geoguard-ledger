@@ -824,13 +824,16 @@ geoguard-ledger/
 │   │   │   └── index.test.tsx  # Component export smoke tests
 │   │   └── pages/
 │   │       └── index.test.tsx  # Page export smoke tests
+│   ├── public/                 # favicon + apple-touch-icon + og-image
 │   └── Dockerfile
 │
 ├── docker-compose.yml          # Orchestrates backend + db + frontend
+├── assets/                     # Brand assets: logo.svg + avatar PNGs
 ├── scripts/
 │   ├── setup_dev.sh            # One-command dev environment setup
 │   ├── deploy_contract.sh      # Deploy Soroban contract to Testnet
-│   └── seed_db.py              # Seed database with sample datasets
+│   ├── seed_db.py              # Seed database with sample datasets
+│   └── generate_logo.py        # Regenerate the logo SVG + PNGs
 │
 └── docs/
     ├── architecture.md         # Detailed architecture decisions

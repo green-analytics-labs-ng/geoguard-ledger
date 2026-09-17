@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024" role="img" aria-labelledby="logo-title logo-desc">
+  <title id="logo-title">GeoGuard Ledger</title>
+  <desc id="logo-desc">A white shield with a padlock cut out of it, over a violet disc.</desc>
+  <defs>
+    <linearGradient id="logo-disc" x1="0" y1="0" x2="1024" y2="1024" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#7C3AED"/>
+      <stop offset="1" stop-color="#4C1D95"/>
+    </linearGradient>
+    <mask id="logo-lockout" maskUnits="userSpaceOnUse" x="0" y="0" width="1024" height="1024">
+      <rect width="1024" height="1024" fill="#fff"/>
+      <g fill="#000">
+        <rect x="402" y="500" width="220" height="150" rx="26"/>
+        <path d="M432 502 L432 500 A80 80 0 0 1 592 500 L592 502 L556 502 L556 500 A44 44 0 0 0 468 500 L468 502 Z"/>
+      </g>
+    </mask>
+  </defs>
+  <circle cx="512" cy="512" r="512" fill="url(#logo-disc)"/>
+  <path d="M308 300 L716 300 Q732 300 732 316 L732 600 Q732 690 512 780 Q292 690 292 600 L292 316 Q292 300 308 300 Z" fill="#fff" mask="url(#logo-lockout)"/>
+  <circle cx="512" cy="545" r="25" fill="#10B981"/>
+  <path d="M499 556 L525 556 L512 600 Z" fill="#10B981"/>
+</svg>
