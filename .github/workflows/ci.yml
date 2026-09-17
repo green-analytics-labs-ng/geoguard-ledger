@@ -158,9 +158,24 @@ jobs:
       - name: Check the committed logo is current
         run: python3 scripts/generate_logo.py --check
 
+  commit-attribution:
+    name: Commits - No AI Attribution
+    runs-on: ubuntu-latest
+    steps:
+      # The check audits every reachable commit, not just the pushed range, so
+      # it needs the full graph rather than the default single-commit checkout.
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      # Stdlib-only, like the brand check: the script reads commit messages
+      # with `git log` and awk, so there is nothing to install first.
+      - name: Check commit messages for AI attribution
+        run: scripts/check_no_ai_attribution.sh
+
   all-pass:
     name: All Checks Pass
-    needs: [contract-lint-test, backend-lint-test, frontend-lint-test, brand-assets]
+    needs: [contract-lint-test, backend-lint-test, frontend-lint-test, brand-assets, commit-attribution]
     runs-on: ubuntu-latest
     steps:
       - run: echo "✅ All checks passed"

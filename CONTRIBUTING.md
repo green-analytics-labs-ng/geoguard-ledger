@@ -84,6 +84,32 @@ test(frontend): add CsvDropzone unit tests
 chore(ci): add Soroban contract test workflow
 ```
 
+### No AI Attribution in Commit Messages
+
+Do not credit an AI agent in a commit message. That means no
+`Co-Authored-By:` trailer naming an assistant, no `Generated with …` footer, and
+no `🤖` marker. Contributors are the humans who wrote the code, and GitHub reads
+a `Co-Authored-By:` trailer as authorship: a single
+`Co-Authored-By: Codebuff <noreply@codebuff.com>` is enough to add that account
+to the repo's contributor list and Insights graph as if it were a teammate.
+
+Using AI assistance is fine and encouraged — just leave it out of the trailer.
+If you have already committed one, strip it before you push:
+
+```bash
+git commit --amend                  # the most recent commit
+git rebase -i HEAD~N                # older commits
+git push --force-with-lease
+```
+
+CI enforces this (`Commits - No AI Attribution`), and you can run the same check
+locally before pushing:
+
+```bash
+./scripts/check_no_ai_attribution.sh              # every reachable commit
+./scripts/check_no_ai_attribution.sh origin/main..HEAD   # just your branch
+```
+
 ## Development Setup
 
 ```bash
