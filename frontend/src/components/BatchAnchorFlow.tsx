@@ -72,7 +72,9 @@ function BatchMembers({ members, onRemove }: MembersProps) {
  *
  * Each dataset is uploaded and analyzed as it is added (so its hash and
  * anomaly report are real), but nothing is anchored until the root transaction
- * is signed — one on-chain entry instead of one per dataset.
+ * is signed — one on-chain entry instead of one per dataset. Analyzing needs
+ * no wallet, so datasets can be collected and reviewed before Freighter is
+ * involved; the address is only required to build the root transaction.
  */
 export default function BatchAnchorFlow() {
   const navigate = useNavigate();
@@ -97,12 +99,12 @@ export default function BatchAnchorFlow() {
   }, []);
 
   const handleAddMember = useCallback(async () => {
-    if (!pending || !publicKey) return;
+    if (!pending) return;
 
     setProcessing(true);
     setError(null);
     try {
-      const dataset = await uploadCsv(pending.file, publicKey);
+      const dataset = await uploadCsv(pending.file);
       setMembers((prev) => [...prev, { dataset, fileName: pending.file.name }]);
       setPending(null);
       setDropzoneKey((key) => key + 1);
@@ -111,7 +113,7 @@ export default function BatchAnchorFlow() {
     } finally {
       setProcessing(false);
     }
-  }, [pending, publicKey]);
+  }, [pending]);
 
   const handleRemoveMember = useCallback((datasetId: string) => {
     setMembers((prev) => prev.filter((member) => member.dataset.dataset_id !== datasetId));
@@ -221,7 +223,7 @@ export default function BatchAnchorFlow() {
                 </button>
                 <button
                   onClick={handleAddMember}
-                  disabled={processing || !connected}
+                  disabled={processing}
                   className="btn-primary inline-flex items-center gap-2"
                 >
                   {processing ? (
@@ -236,17 +238,9 @@ export default function BatchAnchorFlow() {
               </div>
             ) : (
               <p className="text-xs text-gray-400 mt-3">
-                Each dataset is hashed and checked for anomalies as you add it. Nothing is anchored
+                Each dataset is hashed and checked for anomalies as you add it. No wallet is needed
                 until you sign the batch transaction.
               </p>
-            )}
-
-            {!connected && (
-              <div className="text-center mt-3">
-                <button onClick={connect} className="text-sm text-stellar hover:underline">
-                  Connect your Freighter wallet to build a batch
-                </button>
-              </div>
             )}
           </div>
         </div>
@@ -293,11 +287,20 @@ export default function BatchAnchorFlow() {
                   <span className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />
                   Building Merkle Root...
                 </>
+              ) : !connected ? (
+                "Connect Wallet First"
               ) : (
                 "Create Merkle Root"
               )}
             </button>
           </div>
+          {!connected && (
+            <div className="text-center">
+              <button onClick={connect} className="text-sm text-stellar hover:underline">
+                Connect your Freighter wallet to build the Merkle root
+              </button>
+            </div>
+          )}
         </div>
       )}
 

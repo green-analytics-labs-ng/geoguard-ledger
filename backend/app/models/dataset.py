@@ -17,11 +17,15 @@ class Dataset(Base):
         primary_key=True,
         default=lambda: str(uuid.uuid4()),
     )
-    submitter_address: Mapped[str] = mapped_column(
+    # NULL until the dataset is anchored: analysis needs no wallet, so a
+    # dataset exists as `analyzed` with nobody attached to it yet. The address
+    # binds when a transaction is built, because that is the first point at
+    # which someone has to sign.
+    submitter_address: Mapped[str | None] = mapped_column(
         String(56),
-        nullable=False,
+        nullable=True,
         index=True,
-        comment="Stellar public key (G...) of the researcher",
+        comment="Stellar public key (G...) of the researcher; NULL until anchored",
     )
     dataset_hash: Mapped[str] = mapped_column(
         String(64),
@@ -33,8 +37,8 @@ class Dataset(Base):
     status: Mapped[str] = mapped_column(
         String(20),
         nullable=False,
-        default="pending",
-        comment="pending | anchored | failed",
+        default="analyzed",
+        comment="analyzed | pending | anchored | failed",
     )
 
     # Anomaly report

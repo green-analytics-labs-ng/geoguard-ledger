@@ -9,8 +9,9 @@ import pytest
 from httpx import AsyncClient
 
 from app.config import settings
+from app.models.dataset import Dataset
 from app.services import merkle
-from tests.conftest import MOCK_LEDGER, MOCK_TX_HASH
+from tests.conftest import MOCK_LEDGER, MOCK_TX_HASH, TestSessionLocal, anchor
 
 TEST_ADDRESS = "GABCDEF123456789012345678901234567890123"
 OTHER_ADDRESS = "G" + "B" * 55
@@ -28,10 +29,13 @@ def _csv(tag: str, ph: float = 7.2) -> str:
 
 
 async def _create_dataset(client: AsyncClient, tag: str, ph: float = 7.2) -> dict:
-    """Create a dataset through the real upload endpoint and return its response."""
+    """Analyze an upload through the real endpoint and return its response.
+
+    No address is involved: batching is what binds one, so calling this leaves
+    the dataset unclaimed unless a test anchors it explicitly.
+    """
     resp = await client.post(
         "/api/v1/datasets",
-        data={"submitter_address": TEST_ADDRESS},
         files={"file": (f"{tag}.csv", _csv(tag, ph), "text/csv")},
     )
     assert resp.status_code == 201, resp.text
@@ -187,12 +191,37 @@ async def test_create_batch_rejects_another_addresses_dataset(
     mock_build_root_transaction,
 ):
     dataset = await _create_dataset(client, "foreign")
+    # Bind an owner first: only a dataset that already belongs to somebody can
+    # be refused to somebody else.
+    await anchor(client, dataset["dataset_id"], TEST_ADDRESS)
 
     resp = await client.post(
         "/api/v1/batches",
         json={"submitter_address": OTHER_ADDRESS, "dataset_ids": [dataset["dataset_id"]]},
     )
     assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_create_batch_claims_a_dataset_that_has_no_submitter_yet(
+    client: AsyncClient,
+    mock_build_transaction,
+    mock_build_root_transaction,
+):
+    """Batching is what binds an address to a dataset that was only analyzed."""
+    dataset = await _create_dataset(client, "unclaimed")
+
+    resp = await client.post(
+        "/api/v1/batches",
+        json={"submitter_address": TEST_ADDRESS, "dataset_ids": [dataset["dataset_id"]]},
+    )
+    assert resp.status_code == 201, resp.text
+
+    async with TestSessionLocal() as db:
+        stored = await db.get(Dataset, dataset["dataset_id"])
+
+    assert stored is not None
+    assert stored.submitter_address == TEST_ADDRESS
 
 
 @pytest.mark.asyncio

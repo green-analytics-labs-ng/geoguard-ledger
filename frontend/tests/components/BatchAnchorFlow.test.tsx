@@ -64,7 +64,6 @@ function dataset(id: string, hash: string, score = 0.1): DatasetCreateResponse {
       model_version: "isoforest_v1",
       summary: "[NORMAL] Score=10.0%, 0/6 rows flagged (0.0%).",
     },
-    unsigned_transaction_xdr: "AAAA",
     created_at: "2026-09-12T00:00:00Z",
   };
 }
@@ -165,7 +164,9 @@ describe("BatchAnchorFlow", () => {
     await addDataset(container, "site-a.csv", dataset("d1", HASH_1));
 
     expect(datasetsApi.uploadCsv).toHaveBeenCalledTimes(1);
-    expect(datasetsApi.uploadCsv.mock.calls[0][1]).toBe(PUBLIC_KEY);
+    // The file is the only argument: analysis needs no address, and the batch
+    // root transaction is what binds the submitter.
+    expect(datasetsApi.uploadCsv.mock.calls[0]).toHaveLength(1);
     expect(screen.getByText("1 dataset")).toBeTruthy();
     expect(screen.getByText("site-a.csv")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Review Batch" })).toBeTruthy();
@@ -330,21 +331,37 @@ describe("BatchAnchorFlow", () => {
     expect(screen.queryByText("Batch Anchored!")).toBeNull();
   });
 
-  it("requires a connected wallet before adding or signing", async () => {
+  it("collects and reviews datasets before any wallet is connected", async () => {
     setWallet({ connected: false, publicKey: null });
     const { container } = renderFlow();
 
+    await addDataset(container, "site-a.csv", dataset("d1", HASH_1));
+
+    expect(datasetsApi.uploadCsv).toHaveBeenCalledTimes(1);
+    expect(screen.getByText("site-a.csv")).toBeTruthy();
+    expect(screen.getByText("1 dataset")).toBeTruthy();
+
+    // Reviewing is local, so a wallet is still not needed here.
+    fireEvent.click(screen.getByRole("button", { name: "Review Batch" }));
+
+    expect(screen.getByText(/single Merkle root/)).toBeTruthy();
+  });
+
+  it("requires a wallet to build the Merkle root", async () => {
+    setWallet({ connected: false, publicKey: null });
+    const { container } = renderFlow();
+    await addDataset(container, "site-a.csv", dataset("d1", HASH_1));
+    fireEvent.click(screen.getByRole("button", { name: "Review Batch" }));
+
+    const rootButton = screen.getByRole("button", {
+      name: "Connect Wallet First",
+    });
+    expect(rootButton.hasAttribute("disabled")).toBe(true);
     expect(
       screen.getByRole("button", {
-        name: "Connect your Freighter wallet to build a batch",
+        name: "Connect your Freighter wallet to build the Merkle root",
       }),
     ).toBeTruthy();
-
-    selectFile(container);
-    const addButton = await screen.findByRole("button", {
-      name: "Add to Batch",
-    });
-
-    expect(addButton.hasAttribute("disabled")).toBe(true);
+    expect(batchesApi.createBatch).not.toHaveBeenCalled();
   });
 });

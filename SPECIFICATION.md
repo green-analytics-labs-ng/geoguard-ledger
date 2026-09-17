@@ -136,7 +136,7 @@ Step 2: PREVIEW & CONFIRM
     Researcher reviews the data preview, selects columns for hashing
     (default: all numeric columns), and clicks "Submit for Anchoring."
 
-Step 3: BACKEND PROCESSING (FastAPI)
+Step 3: ANALYZE (FastAPI) — no wallet required
     a. CSV is transmitted to POST /api/v1/datasets as multipart/form-data.
     b. Backend validates CSV structure (rows > 0, required columns present).
     c. Backend computes SHA-256 hash over the canonicalized CSV content.
@@ -151,18 +151,27 @@ Step 3: BACKEND PROCESSING (FastAPI)
        - Input: numeric columns from the CSV.
        - Output: anomaly_score (0.0–1.0), anomaly_flags (list of row indices),
          model_version.
-    e. Backend builds a Soroban transaction:
+    e. Backend stores the dataset as `analyzed` — no submitter, no transaction —
+       and returns the dataset UUID, hash, and anomaly report.
+
+    Nothing has been committed to the network at this point, so no wallet is
+    involved: the hash and the anomaly report are readable before deciding
+    whether to anchor at all.
+
+Step 4: ANCHOR (wallet required)
+    a. Frontend sends the researcher's address to POST /api/v1/datasets/:id/anchor.
+    b. Backend binds that address as the dataset's submitter and builds the
+       Soroban transaction:
        - Invokes contract function: anchor_hash(hash, anomaly_score, model_version).
        - Sets fee, source account, network passphrase.
-    f. Backend returns the unsigned transaction XDR, dataset UUID, hash,
-       and anomaly report to the frontend.
+    c. Backend marks the dataset `pending` and returns the unsigned XDR.
 
-Step 4: WALLET SIGNING (Freighter)
+Step 5: WALLET SIGNING (Freighter)
     a. Frontend passes the transaction XDR to Freighter wallet.
     b. Researcher reviews and approves the transaction in Freighter.
     c. Freighter returns the signed transaction XDR.
 
-Step 5: SUBMIT & CONFIRM
+Step 6: SUBMIT & CONFIRM
     a. Frontend sends the signed XDR to POST /api/v1/datasets/:id/submit.
     b. Backend submits the signed transaction to the Soroban RPC endpoint.
     c. Backend polls for transaction status until SUCCESS or FAILED.
@@ -170,7 +179,7 @@ Step 5: SUBMIT & CONFIRM
        and updates dataset status to "anchored."
     e. Backend returns the confirmation with on-chain proof details.
 
-Step 6: VERIFICATION DISPLAY
+Step 7: VERIFICATION DISPLAY
     Frontend shows:
       - On-chain transaction link (Stellar Expert explorer).
       - Dataset hash, anomaly score, timestamp.
@@ -408,15 +417,19 @@ Development: http://localhost:8000/api/v1
 ### 5.2 Endpoints
 
 #### `POST /api/v1/datasets`
-Upload and process a new geochemical dataset.
+Analyze a new geochemical dataset: canonicalize, hash, and score it. No wallet
+is required, and no transaction is returned — anchoring is a separate step.
 
 **Request:**
 ```
 Content-Type: multipart/form-data
   - file: CSV, JSON, or XML file (required)
-  - researcher_id: string (optional, derived from auth token in later phases)
-  - hash_columns: string[] (optional, columns to include in hash)
 ```
+
+Anchoring is performed by `POST /api/v1/datasets/:id/anchor`.
+
+**Status:** the dataset is stored as `analyzed` (`analyzed | pending |
+anchored | failed`), with `submitter_address` NULL until it is anchored.
 
 **Supported formats:** `.csv`, `.json`, and `.xml` (detected from the filename
 extension, case-insensitive). CSV and JSON are normalized to a single canonical
@@ -450,8 +463,37 @@ are also reported for datasets too small to score. See
     "summary": "12% anomaly probability. 2 rows flagged.",
     "warnings": ["[ERROR] pH: 1 value(s) outside the plausible range 0 to 14 (rows 4)"]
   },
-  "unsigned_transaction_xdr": "AAAAAgAAA...",
   "created_at": "2026-07-05T12:00:00Z"
+}
+```
+
+#### `POST /api/v1/datasets/{dataset_id}/anchor`
+Bind the researcher's Stellar address to an analyzed dataset and build the
+unsigned anchoring transaction. This is the instance of the flow that needs a
+wallet, because it produces the transaction that must be signed.
+
+**Request:**
+```json
+{
+  "submitter_address": "GABC..."
+}
+```
+
+**Behaviour:**
+- The address must be a Stellar public key (starts with `G`), and becomes both
+  the transaction's source account and the dataset's recorded submitter.
+- A dataset already bound to a different address is refused with `403`; one
+  already `anchored` with `409`. An `analyzed` or `pending` dataset can be
+  anchored again, which is what retrying a rejected signature looks like.
+- The address is never validated as a signature, so what it proves is *which
+  account paid to anchor the hash*, not who the researcher is.
+
+**Response (200 OK):**
+```json
+{
+  "dataset_id": "uuid",
+  "dataset_hash": "abc123...",
+  "unsigned_transaction_xdr": "AAAAAgAAA..."
 }
 ```
 
@@ -557,7 +599,7 @@ Build a Merkle root over a set of datasets and return an unsigned root-anchoring
 ```
 
 **Behaviour:**
-- All datasets must exist, belong to `submitter_address`, and not already be in a batch.
+- All datasets must exist, not already be in a batch, and either have no submitter yet (they were only analyzed) or already belong to `submitter_address`. A member with no submitter is claimed by this call, since building the root transaction is the first point at which the address is needed.
 - The batch may not exceed `MAX_BATCH_SIZE` (default 1024) datasets, and `dataset_ids` must be unique.
 - Leaves are committed in the order given, and each dataset records its `leaf_index`, `merkle_root`, and `merkle_proof`.
 

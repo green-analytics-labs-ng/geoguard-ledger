@@ -188,7 +188,6 @@ async def test_create_dataset_response_includes_warnings(
     """Plausibility findings must reach the API response and be persisted."""
     response = await client.post(
         "/api/v1/datasets",
-        data={"submitter_address": "GABCDEF123456789012345678901234567890123"},
         files={"file": ("out-of-range.csv", WARNINGS_CSV, "text/csv")},
     )
 

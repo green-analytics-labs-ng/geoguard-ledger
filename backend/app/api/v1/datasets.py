@@ -28,12 +28,31 @@ class AnomalyReport(BaseModel):
     warnings: list[str] = Field(default_factory=list)
 
 
-class DatasetCreateResponse(BaseModel):
+class DatasetAnalyzeResponse(BaseModel):
+    """Result of canonicalizing, hashing, and analyzing one upload.
+
+    Carries no transaction on purpose: analysis needs no wallet, so the
+    unsigned anchor transaction is not built until the researcher supplies an
+    address at ``POST /datasets/{id}/anchor``.
+    """
+
     dataset_id: str
     dataset_hash: str
     anomaly_report: AnomalyReport
-    unsigned_transaction_xdr: str
     created_at: str
+
+
+class AnchorRequest(BaseModel):
+    submitter_address: str = Field(
+        ...,
+        description="Stellar public key of the researcher who will sign the anchor",
+    )
+
+
+class DatasetAnchorResponse(BaseModel):
+    dataset_id: str
+    dataset_hash: str
+    unsigned_transaction_xdr: str
 
 
 class SubmitRequest(BaseModel):
@@ -72,23 +91,32 @@ class DatasetListResponse(BaseModel):
 
 @router.post(
     "",
-    response_model=DatasetCreateResponse,
+    response_model=DatasetAnalyzeResponse,
     status_code=status.HTTP_201_CREATED,
 )
-async def create_dataset(
-    submitter_address: str = Form(  # noqa: B008
-        ...,
-        description="Stellar public key of the researcher",
-    ),
+async def analyze_dataset(
     file: UploadFile = File(...),  # noqa: B008
+    submitter_address: str | None = Form(None),  # noqa: B008
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ) -> Any:
-    """Upload and process a new geochemical dataset."""
-    # Validate submitter address
-    if not submitter_address.startswith("G"):
+    """Canonicalize, hash, and analyze an uploaded dataset. No wallet required.
+
+    Nothing is committed to the network here, so there is nothing to sign yet:
+    the dataset is stored as ``analyzed`` with no submitter, and the address is
+    bound later by ``POST /datasets/{id}/anchor``. Splitting the two is what
+    lets a researcher see the hash and the anomaly report before deciding to
+    connect a wallet at all.
+    """
+    # Rejected rather than ignored. A caller still sending the address is using
+    # the old contract: it would get a 201 with no transaction in the body and
+    # fail much later, at the signing step, with no hint as to why.
+    if submitter_address is not None:
         raise HTTPException(
             status_code=400,
-            detail="Invalid Stellar public key — must start with 'G'",
+            detail=(
+                "submitter_address is not accepted here anymore — analyze the file "
+                "first, then POST /datasets/{dataset_id}/anchor with the address."
+            ),
         )
 
     # Validate file format (CSV, JSON or XML)
@@ -107,26 +135,22 @@ async def create_dataset(
     # Run AI anomaly detection on the same canonical representation
     anomaly_result = run_anomaly_detection(processed.analysis_text, processed.file_format)
 
-    # Build unsigned Soroban transaction
-    xdr = await build_anchor_transaction(submitter_address, dataset_hash, anomaly_result)
-
     # Persist to database
     dataset = Dataset(
-        submitter_address=submitter_address,
+        submitter_address=None,
         dataset_hash=dataset_hash,
-        status="pending",
+        status="analyzed",
         anomaly_score=anomaly_result["score"],
         anomaly_flags=anomaly_result["flags"],
         model_version=anomaly_result["model_version"],
         anomaly_summary=anomaly_result["summary"],
         anomaly_warnings=anomaly_result.get("warnings", []),
-        unsigned_transaction_xdr=xdr,
     )
     db.add(dataset)
     await db.commit()
     await db.refresh(dataset)
 
-    return DatasetCreateResponse(
+    return DatasetAnalyzeResponse(
         dataset_id=dataset.dataset_id,
         dataset_hash=dataset.dataset_hash,
         anomaly_report=AnomalyReport(
@@ -136,10 +160,71 @@ async def create_dataset(
             summary=anomaly_result["summary"],
             warnings=anomaly_result.get("warnings", []),
         ),
-        unsigned_transaction_xdr=xdr,
         created_at=dataset.created_at.isoformat()
         if dataset.created_at
         else datetime.now(UTC).isoformat(),
+    )
+
+
+@router.post("/{dataset_id}/anchor", response_model=DatasetAnchorResponse)
+async def anchor_dataset(
+    dataset_id: str,
+    body: AnchorRequest,
+    db: AsyncSession = Depends(get_db),  # noqa: B008
+) -> Any:
+    """Build the unsigned anchoring transaction for an analyzed dataset.
+
+    This is the wallet step. The address becomes the transaction's source
+    account and the dataset's submitter, so whoever signs is the one the ledger
+    records as having anchored it — and the one a batch has to agree with.
+    """
+    if not body.submitter_address.startswith("G"):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid Stellar public key — must start with 'G'",
+        )
+
+    result = await db.execute(select(Dataset).where(Dataset.dataset_id == dataset_id))
+    dataset = result.scalar_one_or_none()
+    if not dataset:
+        raise HTTPException(status_code=404, detail="Dataset not found")
+
+    if dataset.status == "anchored":
+        raise HTTPException(status_code=409, detail="Dataset is already anchored")
+
+    # A dataset already bound to an address can only be re-anchored by that
+    # same owner. Still `analyzed` or `pending` means the transaction was never
+    # submitted, so rebuilding it is a retry rather than a takeover.
+    if dataset.submitter_address not in (None, body.submitter_address):
+        raise HTTPException(
+            status_code=403,
+            detail="Dataset belongs to a different submitter",
+        )
+
+    # Rebuild the anomaly report from the stored columns: the on-chain call
+    # carries the score and model version that this dataset was analyzed with.
+    anomaly_report = {
+        "score": dataset.anomaly_score,
+        "model_version": dataset.model_version or "",
+        "flags": dataset.anomaly_flags or [],
+        "summary": dataset.anomaly_summary or "",
+    }
+
+    xdr = await build_anchor_transaction(
+        body.submitter_address,
+        dataset.dataset_hash,
+        anomaly_report,
+    )
+
+    dataset.submitter_address = body.submitter_address
+    dataset.unsigned_transaction_xdr = xdr
+    dataset.status = "pending"
+    await db.commit()
+
+    return DatasetAnchorResponse(
+        dataset_id=dataset.dataset_id,
+        dataset_hash=dataset.dataset_hash,
+        unsigned_transaction_xdr=xdr,
     )
 
 

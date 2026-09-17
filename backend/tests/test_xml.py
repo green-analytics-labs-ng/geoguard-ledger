@@ -161,7 +161,6 @@ async def test_create_dataset_accepts_xml(
 ) -> None:
     response = await client.post(
         "/api/v1/datasets",
-        data={"submitter_address": TEST_ADDRESS},
         files={"file": ("sample.xml", SAMPLE_XML, "application/xml")},
     )
 
@@ -178,7 +177,6 @@ async def test_create_dataset_accepts_xml_without_a_declaration(
 ) -> None:
     response = await client.post(
         "/api/v1/datasets",
-        data={"submitter_address": TEST_ADDRESS},
         files={"file": ("mini.xml", MINIMAL_XML, "application/xml")},
     )
 
@@ -192,7 +190,6 @@ async def test_create_dataset_rejects_malformed_xml(
     """Malformed XML must be a 400 with a clear message, never a 500."""
     response = await client.post(
         "/api/v1/datasets",
-        data={"submitter_address": TEST_ADDRESS},
         files={"file": ("broken.xml", b"<report><row></report>", "application/xml")},
     )
 
@@ -206,7 +203,6 @@ async def test_create_dataset_rejects_xml_without_numeric_columns(
 ) -> None:
     response = await client.post(
         "/api/v1/datasets",
-        data={"submitter_address": TEST_ADDRESS},
         files={
             "file": (
                 "text-only.xml",
@@ -226,7 +222,6 @@ async def test_create_dataset_still_rejects_unsupported_formats(
 ) -> None:
     response = await client.post(
         "/api/v1/datasets",
-        data={"submitter_address": TEST_ADDRESS},
         files={"file": ("data.txt", b"not data", "text/plain")},
     )
 
@@ -249,7 +244,6 @@ async def test_csv_upload_is_unaffected(
     )
     response = await client.post(
         "/api/v1/datasets",
-        data={"submitter_address": TEST_ADDRESS},
         files={"file": ("sample.csv", csv_content, "text/csv")},
     )
 
@@ -266,7 +260,6 @@ async def test_verify_recomputes_the_same_xml_hash(
     """A verifier re-uploading the XML must reproduce the anchored hash."""
     created = await client.post(
         "/api/v1/datasets",
-        data={"submitter_address": TEST_ADDRESS},
         files={"file": ("sample.xml", SAMPLE_XML, "application/xml")},
     )
     dataset_hash = created.json()["dataset_hash"]

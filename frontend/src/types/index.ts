@@ -21,12 +21,24 @@ export interface AnomalyReport {
   warnings?: string[];
 }
 
+/**
+ * Result of analyzing an upload.
+ *
+ * Carries no transaction: analysis needs no wallet, so the unsigned anchor
+ * transaction only exists after `anchorDataset` binds an address.
+ */
 export interface DatasetCreateResponse {
   dataset_id: string;
   dataset_hash: string;
   anomaly_report: AnomalyReport;
-  unsigned_transaction_xdr: string;
   created_at: string;
+}
+
+/** The transaction to sign, built once a submitter address is known. */
+export interface DatasetAnchorResponse {
+  dataset_id: string;
+  dataset_hash: string;
+  unsigned_transaction_xdr: string;
 }
 
 export interface SubmitResponse {
@@ -41,7 +53,7 @@ export interface SubmitResponse {
 export interface DatasetResponse {
   dataset_id: string;
   dataset_hash: string;
-  status: "pending" | "anchored" | "failed";
+  status: "analyzed" | "pending" | "anchored" | "failed";
   anomaly_score: number;
   anomaly_report?: AnomalyReport;
   stellar_tx_hash?: string;

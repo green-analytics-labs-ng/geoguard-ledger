@@ -13,7 +13,8 @@ http://localhost:8000/api/v1
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/health` | Health check (probes Soroban RPC connectivity) |
-| `POST` | `/datasets` | Upload and process a CSV, JSON, or XML dataset |
+| `POST` | `/datasets` | Analyze an upload: canonicalize, hash, and score it. No wallet required |
+| `POST` | `/datasets/{id}/anchor` | Bind the researcher's address and build the unsigned anchor transaction |
 | `POST` | `/datasets/{id}/submit` | Submit a signed transaction to Stellar |
 | `GET` | `/datasets` | List all datasets |
 | `GET` | `/datasets/{id}` | Get dataset details |
@@ -24,6 +25,61 @@ http://localhost:8000/api/v1
 | `POST` | `/verify` | Verify a dataset against on-chain proof |
 
 For full request/response schemas, see [SPECIFICATION.md](../SPECIFICATION.md#5-backend-api-specification-fastapi).
+
+## Analyzing and anchoring are separate steps
+
+Uploading no longer involves a wallet. `POST /datasets` canonicalizes the
+upload, computes its SHA-256 hash, runs anomaly detection, and stores the
+dataset as `analyzed` — no submitter, and no transaction, because nothing has
+been committed to the network yet:
+
+```json
+{
+  "dataset_id": "3f1a...",
+  "dataset_hash": "9c2b...",
+  "anomaly_report": { "score": 0.1667, "flags": [6], "model_version": "isoforest_v1", "summary": "..." },
+  "created_at": "2026-09-17T09:00:00Z"
+}
+```
+
+The address is bound by `POST /datasets/{id}/anchor`, which is the step that
+needs a wallet because it builds the transaction the researcher signs:
+
+```json
+{ "submitter_address": "GABC..." }
+```
+
+It answers with the transaction to sign, and moves the dataset to `pending`:
+
+```json
+{
+  "dataset_id": "3f1a...",
+  "dataset_hash": "9c2b...",
+  "unsigned_transaction_xdr": "AAAAAgAAAAB..."
+}
+```
+
+Errors: `400` for a malformed address, `403` when the dataset is already bound
+to a different address, `404` for an unknown dataset, and `409` once it is
+`anchored` (there is nothing left to sign). A `pending` dataset can be anchored
+again, which is what retrying a rejected signature looks like.
+
+Because the address is what binds ownership, a dataset that was only analyzed
+has no owner. `POST /batches` therefore claims any member that has no submitter
+yet, and still refuses a member that belongs to somebody else.
+
+Sending `submitter_address` to `POST /datasets` is **rejected with a `400`**
+rather than ignored. Silently dropping it would return a body with no
+transaction in it, and the caller would only find out at the signing step.
+
+## Dataset statuses
+
+| Status | Meaning |
+|--------|---------|
+| `analyzed` | Hashed and scored; no address, no transaction |
+| `pending` | An anchor transaction (its own, or its batch's root) is awaiting a signature |
+| `anchored` | The signed transaction was submitted and confirmed |
+| `failed` | Submission was attempted and rejected |
 
 ## Supported upload formats
 

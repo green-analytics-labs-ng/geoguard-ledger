@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useWallet } from "../context/WalletContext";
-import { uploadCsv, submitDataset } from "../api/datasets";
+import { uploadCsv, anchorDataset, submitDataset } from "../api/datasets";
 import CsvDropzone from "./CsvDropzone";
 import SubmissionStepper from "./SubmissionStepper";
 import AnomalyBadge from "./AnomalyBadge";
@@ -9,10 +9,30 @@ import AnomalyWarnings from "./AnomalyWarnings";
 import TxExplorerLink from "./TxExplorerLink";
 import ErrorBanner from "./ErrorBanner";
 import { apiErrorMessage } from "../utils/errors";
-import type { CsvPreview, SubmissionStep, DatasetCreateResponse, SubmitResponse } from "../types";
+import type {
+  CsvPreview,
+  SubmissionStep,
+  DatasetAnchorResponse,
+  DatasetCreateResponse,
+  SubmitResponse,
+} from "../types";
+
+/**
+ * Shown when the sign step is reached with no wallet connected.
+ *
+ * Analysis does not need an address, but anchoring does: the address becomes
+ * the transaction's source account. Saying so is the whole point of the guard
+ * in `handleGoToSign`, which would otherwise do nothing at all.
+ */
+const NO_WALLET_MESSAGE =
+  "Connect your Freighter wallet to anchor this dataset — the transaction is built from your Stellar address.";
 
 /**
  * Single-dataset anchoring: upload → preview → AI report → sign → confirmed.
+ *
+ * The first three steps need no wallet: the dataset is hashed and scored as
+ * soon as it is uploaded, and only "Continue to Sign" builds the transaction
+ * that Freighter has to sign.
  *
  * Signs one transaction that anchors this dataset's own hash. To commit
  * several datasets under one Merkle root instead, see `BatchAnchorFlow`.
@@ -30,6 +50,9 @@ export default function SingleAnchorFlow() {
   // Dataset creation response from backend
   const [createResponse, setCreateResponse] = useState<DatasetCreateResponse | null>(null);
 
+  // Transaction to sign, once an address has been bound to the dataset
+  const [anchorResponse, setAnchorResponse] = useState<DatasetAnchorResponse | null>(null);
+
   // Submit response after anchoring
   const [submitResponse, setSubmitResponse] = useState<SubmitResponse | null>(null);
 
@@ -40,13 +63,14 @@ export default function SingleAnchorFlow() {
     setError(null);
   }, []);
 
+  /** Hash and score the upload. No wallet: this step never signs anything. */
   const handleSubmitToBackend = useCallback(async () => {
-    if (!file || !publicKey) return;
+    if (!file) return;
 
     setProcessing(true);
     setError(null);
     try {
-      const result = await uploadCsv(file, publicKey);
+      const result = await uploadCsv(file);
       setCreateResponse(result);
       setStep("ai-report");
     } catch (err) {
@@ -54,20 +78,49 @@ export default function SingleAnchorFlow() {
     } finally {
       setProcessing(false);
     }
-  }, [file, publicKey]);
+  }, [file]);
+
+  /**
+   * Bind the connected address and fetch the transaction to sign.
+   *
+   * This is where the wallet requirement actually lives — the report is also
+   * readable without one, so it is not asked for until there is something to
+   * sign.
+   */
+  const handleGoToSign = useCallback(async () => {
+    if (!createResponse) return;
+    if (!publicKey) {
+      // The button is disabled in this state, so reaching here means something
+      // got past the UI. Fail loudly rather than returning silently.
+      setError(NO_WALLET_MESSAGE);
+      return;
+    }
+
+    setProcessing(true);
+    setError(null);
+    try {
+      const anchored = await anchorDataset(createResponse.dataset_id, publicKey);
+      setAnchorResponse(anchored);
+      setStep("sign");
+    } catch (err) {
+      setError(apiErrorMessage(err, "Failed to prepare the anchoring transaction"));
+    } finally {
+      setProcessing(false);
+    }
+  }, [createResponse, publicKey]);
 
   const handleSignAndSubmit = useCallback(async () => {
-    if (!createResponse) return;
+    if (!anchorResponse) return;
 
     setProcessing(true);
     setError(null);
     try {
       // Sign the transaction via Freighter
-      const signedXdr = await signTx(createResponse.unsigned_transaction_xdr);
+      const signedXdr = await signTx(anchorResponse.unsigned_transaction_xdr);
       setStep("confirmed");
 
       // Submit the signed transaction to the backend
-      const result = await submitDataset(createResponse.dataset_id, signedXdr);
+      const result = await submitDataset(anchorResponse.dataset_id, signedXdr);
       setSubmitResponse(result);
     } catch (err) {
       const message = apiErrorMessage(err, "Submission failed");
@@ -81,13 +134,14 @@ export default function SingleAnchorFlow() {
     } finally {
       setProcessing(false);
     }
-  }, [createResponse, signTx]);
+  }, [anchorResponse, signTx]);
 
   const handleReset = useCallback(() => {
     setStep("upload");
     setFile(null);
     setPreview(null);
     setCreateResponse(null);
+    setAnchorResponse(null);
     setSubmitResponse(null);
     setError(null);
   }, []);
@@ -170,13 +224,33 @@ export default function SingleAnchorFlow() {
           </div>
 
           <div className="flex gap-3 justify-end">
-            <button onClick={handleReset} className="btn-secondary">
+            <button onClick={handleReset} className="btn-secondary" disabled={processing}>
               Cancel
             </button>
-            <button onClick={() => setStep("sign")} className="btn-primary">
-              Continue to Sign
+            <button
+              onClick={handleGoToSign}
+              disabled={processing || !connected}
+              className="btn-primary inline-flex items-center gap-2"
+            >
+              {processing ? (
+                <>
+                  <span className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />
+                  Preparing...
+                </>
+              ) : !connected ? (
+                "Connect Wallet First"
+              ) : (
+                "Continue to Sign"
+              )}
             </button>
           </div>
+          {!connected && (
+            <div className="text-center">
+              <button onClick={connect} className="text-sm text-stellar hover:underline">
+                Connect your Freighter wallet to anchor this dataset
+              </button>
+            </div>
+          )}
         </div>
       )}
 

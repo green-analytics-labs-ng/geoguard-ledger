@@ -138,7 +138,14 @@ async def create_batch(
 
     datasets = [datasets_by_id[dataset_id] for dataset_id in dataset_ids]
 
-    not_owned = [ds.dataset_id for ds in datasets if ds.submitter_address != body.submitter_address]
+    # Datasets that were only analyzed have no submitter yet — the address
+    # binds when a transaction is built, and for a batch that is here. A
+    # dataset already bound to someone else stays refused.
+    not_owned = [
+        ds.dataset_id
+        for ds in datasets
+        if ds.submitter_address is not None and ds.submitter_address != body.submitter_address
+    ]
     if not_owned:
         raise HTTPException(
             status_code=403,
@@ -176,6 +183,12 @@ async def create_batch(
     leaves: list[BatchLeaf] = []
     for index, dataset in enumerate(datasets):
         proof = merkle.generate_proof(hashes, index)
+        dataset.submitter_address = dataset.submitter_address or body.submitter_address
+        # An analyzed dataset is now committed to a root that is waiting for a
+        # signature, which is what `pending` means. One already anchored on its
+        # own keeps that status rather than being downgraded by joining a batch.
+        if dataset.status != "anchored":
+            dataset.status = "pending"
         dataset.batch_id = batch.batch_id
         dataset.merkle_root = merkle_root
         dataset.leaf_index = index

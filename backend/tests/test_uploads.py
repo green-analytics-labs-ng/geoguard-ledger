@@ -84,7 +84,6 @@ async def test_create_dataset_rejects_oversized_upload(
 
     response = await client.post(
         "/api/v1/datasets",
-        data={"submitter_address": TEST_ADDRESS},
         files={"file": ("big.csv", OVERSIZED_CSV, "text/csv")},
     )
 
@@ -102,7 +101,6 @@ async def test_create_dataset_accepts_upload_within_limit(
 
     response = await client.post(
         "/api/v1/datasets",
-        data={"submitter_address": TEST_ADDRESS},
         files={"file": ("small.csv", SMALL_CSV, "text/csv")},
     )
 

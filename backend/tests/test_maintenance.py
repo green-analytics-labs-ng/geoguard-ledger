@@ -15,7 +15,7 @@ from httpx import AsyncClient
 from app.models.batch import Batch
 from app.models.dataset import Dataset
 from app.services.ttl_renewal import ensure_utc
-from tests.conftest import TestSessionLocal
+from tests.conftest import TestSessionLocal, analyze_and_anchor
 
 TEST_ADDRESS = "GABCDEF123456789012345678901234567890123"
 
@@ -102,13 +102,8 @@ async def test_anchoring_a_dataset_records_its_record_ttl_deadline(
     That is the default upload path, so a missing deadline here would mean the
     common case expires unnoticed while only batching gets renewed.
     """
-    upload = await client.post(
-        "/api/v1/datasets",
-        data={"submitter_address": TEST_ADDRESS},
-        files={"file": ("samples.csv", SAMPLE_CSV, "text/csv")},
-    )
-    assert upload.status_code == 201, upload.text
-    dataset_id = upload.json()["dataset_id"]
+    dataset = await analyze_and_anchor(client, TEST_ADDRESS, SAMPLE_CSV, "samples.csv")
+    dataset_id = dataset["dataset_id"]
 
     submitted = await client.post(
         f"/api/v1/datasets/{dataset_id}/submit",
@@ -135,12 +130,8 @@ async def test_a_standalone_dataset_shows_up_as_healthy(
     mock_submit_transaction,
 ):
     """A freshly anchored record has ~180 days left, so nothing is due yet."""
-    upload = await client.post(
-        "/api/v1/datasets",
-        data={"submitter_address": TEST_ADDRESS},
-        files={"file": ("samples.csv", SAMPLE_CSV, "text/csv")},
-    )
-    dataset_id = upload.json()["dataset_id"]
+    dataset = await analyze_and_anchor(client, TEST_ADDRESS, SAMPLE_CSV, "samples.csv")
+    dataset_id = dataset["dataset_id"]
     await client.post(
         f"/api/v1/datasets/{dataset_id}/submit",
         json={"signed_transaction_xdr": MOCK_SIGNED_XDR},
@@ -164,7 +155,6 @@ async def test_anchoring_a_batch_records_its_root_ttl_deadline(
 ):
     upload = await client.post(
         "/api/v1/datasets",
-        data={"submitter_address": TEST_ADDRESS},
         files={"file": ("samples.csv", SAMPLE_CSV, "text/csv")},
     )
     assert upload.status_code == 201, upload.text
@@ -210,7 +200,6 @@ async def test_a_batched_dataset_is_not_reported_as_an_expiring_record(
 ):
     upload = await client.post(
         "/api/v1/datasets",
-        data={"submitter_address": TEST_ADDRESS},
         files={"file": ("samples.csv", SAMPLE_CSV, "text/csv")},
     )
     dataset_id = upload.json()["dataset_id"]

@@ -2,10 +2,11 @@
 End-to-end submission flow test.
 
 This script simulates the full user journey:
-1. Create a dataset (upload CSV, get hash + anomaly report + unsigned XDR)
-2. Sign the XDR using the deployer secret (simulating Freighter wallet)
-3. Submit the signed transaction to Stellar
-4. Verify the on-chain proof
+1. Analyze a dataset (upload CSV, get hash + anomaly report — no wallet needed)
+2. Anchor it with the deployer's address to get the unsigned XDR
+3. Sign the XDR using the deployer secret (simulating Freighter wallet)
+4. Submit the signed transaction to Stellar
+5. Verify the on-chain proof
 
 Run inside the Docker container:
   docker cp backend/tests/e2e_submission_flow.py <container>:/tmp/
@@ -76,9 +77,9 @@ def main():
     kp = load_signer()
     submitter_public_key = kp.public_key
 
-    # ── Step 1: Create Dataset ────────────────────────────────────
+    # ── Step 1: Analyze Dataset ───────────────────────────────────
     print("=" * 60)
-    print("STEP 1: Create Dataset")
+    print("STEP 1: Analyze Dataset (no wallet)")
     print("=" * 60)
 
     # Use a unique CSV to avoid hash collision with previous test data
@@ -95,10 +96,6 @@ def main():
 
     boundary = "----WebKitFormBoundary" + unique_id
     body_parts = [
-        f"--{boundary}",
-        'Content-Disposition: form-data; name="submitter_address"',
-        "",
-        submitter_public_key,
         f"--{boundary}",
         'Content-Disposition: form-data; name="file"; filename="sample.csv"',
         "Content-Type: text/csv",
@@ -118,7 +115,6 @@ def main():
     create_result = json.loads(resp.read().decode())
     dataset_id = create_result["dataset_id"]
     dataset_hash = create_result["dataset_hash"]
-    unsigned_xdr = create_result["unsigned_transaction_xdr"]
     anomaly_score = create_result["anomaly_report"]["score"]
     model_version = create_result["anomaly_report"]["model_version"]
 
@@ -127,13 +123,31 @@ def main():
     print(f"dataset_hash: {dataset_hash}")
     print(f"anomaly_score: {anomaly_score}")
     print(f"model_version: {model_version}")
+    print()
+
+    # ── Step 2: Anchor Dataset (wallet step) ─────────────────────
+    print("=" * 60)
+    print("STEP 2: Anchor Dataset (wallet step)")
+    print("=" * 60)
+
+    anchor_status, anchor_result = api_post(
+        f"/datasets/{dataset_id}/anchor",
+        {"submitter_address": submitter_public_key},
+    )
+    if anchor_status != 200:
+        print(f"ERROR: {anchor_status}")
+        print(anchor_result)
+        exit(1)
+
+    unsigned_xdr = anchor_result["unsigned_transaction_xdr"]
+    print(f"Status: {anchor_status}")
     print(f"has_xdr: {bool(unsigned_xdr)}")
     print(f"xdr_preview: {unsigned_xdr[:60]}...")
     print()
 
-    # ── Step 2: Sign Transaction (simulating Freighter) ───────────
+    # ── Step 3: Sign Transaction (simulating Freighter) ───────────
     print("=" * 60)
-    print("STEP 2: Sign Transaction")
+    print("STEP 3: Sign Transaction")
     print("=" * 60)
 
     network_passphrase = "Test SDF Network ; September 2015"
@@ -146,9 +160,9 @@ def main():
     print(f"signed_xdr_preview: {signed_xdr[:60]}...")
     print()
 
-    # ── Step 3: Submit Transaction ────────────────────────────────
+    # ── Step 4: Submit Transaction ────────────────────────────────
     print("=" * 60)
-    print("STEP 3: Submit Transaction")
+    print("STEP 4: Submit Transaction")
     print("=" * 60)
 
     submit_body = json.dumps({"signed_transaction_xdr": signed_xdr}).encode()
@@ -176,9 +190,9 @@ def main():
         exit(1)
     print()
 
-    # ── Step 4: Verify On-Chain ──────────────────────────────────
+    # ── Step 5: Verify On-Chain ──────────────────────────────────
     print("=" * 60)
-    print("STEP 4: Verify On-Chain")
+    print("STEP 5: Verify On-Chain")
     print("=" * 60)
 
     req = urllib.request.Request(f"{BASE}/verify?dataset_hash={dataset_hash}")
@@ -199,9 +213,9 @@ def main():
         print(f"Verify error {e.code}: {e.read().decode()[:300]}")
     print()
 
-    # ── Step 5: Get Dataset Details ──────────────────────────────
+    # ── Step 6: Get Dataset Details ──────────────────────────────
     print("=" * 60)
-    print("STEP 5: Dataset Details")
+    print("STEP 6: Dataset Details")
     print("=" * 60)
 
     req = urllib.request.Request(f"{BASE}/datasets/{dataset_id}")

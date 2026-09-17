@@ -3,7 +3,7 @@
 import pytest
 from httpx import AsyncClient
 
-from tests.conftest import SAMPLE_CSV, SAMPLE_HASH, SAMPLE_JSON
+from tests.conftest import SAMPLE_CSV, SAMPLE_HASH, SAMPLE_JSON, analyze_and_anchor
 
 TEST_ADDRESS = "GABCDEF123456789012345678901234567890123"
 
@@ -55,13 +55,8 @@ async def test_verify_by_id_with_local_record(
     mock_verify_on_chain_not_found,
 ):
     """Verification by dataset ID should include local_record from DB."""
-    # Create a dataset first
-    create_resp = await client.post(
-        "/api/v1/datasets",
-        data={"submitter_address": TEST_ADDRESS},
-        files={"file": ("test.csv", SAMPLE_CSV, "text/csv")},
-    )
-    dataset_id = create_resp.json()["dataset_id"]
+    # Analyze and anchor a dataset first
+    dataset_id = (await analyze_and_anchor(client, TEST_ADDRESS))["dataset_id"]
 
     response = await client.post(
         "/api/v1/verify",
@@ -126,16 +121,11 @@ async def test_full_create_anchor_verify_flow(
     mock_submit_transaction,
     mock_verify_on_chain_found,
 ):
-    """End-to-end: create dataset → submit → verify on-chain."""
-    # Step 1: Create
-    create_resp = await client.post(
-        "/api/v1/datasets",
-        data={"submitter_address": TEST_ADDRESS},
-        files={"file": ("test.csv", SAMPLE_CSV, "text/csv")},
-    )
-    assert create_resp.status_code == 201
-    dataset_id = create_resp.json()["dataset_id"]
-    dataset_hash = create_resp.json()["dataset_hash"]
+    """End-to-end: analyze → anchor → submit → verify on-chain."""
+    # Step 1: Analyze and anchor (this is where the wallet is involved)
+    created = await analyze_and_anchor(client, TEST_ADDRESS)
+    dataset_id = created["dataset_id"]
+    dataset_hash = created["dataset_hash"]
 
     # Step 2: Submit
     submit_resp = await client.post(

@@ -77,10 +77,12 @@ S006,34.053700,-118.245200,7.21,451.00,8.45,22.15
 
 def _build_seed_rows() -> list[dict[str, Any]]:
     """Run each sample dataset through the real pipeline and build ORM rows."""
+    # `analyzed` is a dataset that has been hashed and scored but never
+    # anchored: no address is attached to it, and no transaction exists for it.
     sources: list[tuple[str, str, str]] = [
-        ("groundwater-baseline.csv", SAMPLE_CSV, "pending"),
+        ("groundwater-baseline.csv", SAMPLE_CSV, "analyzed"),
         ("nitrate-spike-anomaly.csv", ANOMALOUS_CSV, "anchored"),
-        ("impossible-readings.csv", OUT_OF_RANGE_CSV, "pending"),
+        ("impossible-readings.csv", OUT_OF_RANGE_CSV, "analyzed"),
     ]
 
     rows: list[dict[str, Any]] = []
@@ -90,7 +92,11 @@ def _build_seed_rows() -> list[dict[str, Any]]:
 
         rows.append(
             {
-                "submitter_address": SEED_SUBMITTER_ADDRESS,
+                # The address binds when the anchor transaction is built, so an
+                # analyzed dataset does not have one yet.
+                "submitter_address": (
+                    SEED_SUBMITTER_ADDRESS if record_status == "anchored" else None
+                ),
                 "dataset_hash": dataset_hash,
                 "status": record_status,
                 "anomaly_score": result["score"],

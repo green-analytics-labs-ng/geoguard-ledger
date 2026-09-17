@@ -1,19 +1,34 @@
 import client from "./client";
-import type { DatasetCreateResponse, DatasetResponse } from "../types";
+import type { DatasetAnchorResponse, DatasetCreateResponse, DatasetResponse } from "../types";
 
-export async function uploadCsv(
-  file: File,
-  submitterAddress: string,
-  hashColumns?: string[],
-): Promise<DatasetCreateResponse> {
+/**
+ * Upload a file to be canonicalized, hashed, and scored.
+ *
+ * No wallet is involved: nothing is committed to the network here, so there is
+ * no transaction to sign yet. Call `anchorDataset` when the researcher is ready
+ * to sign.
+ */
+export async function uploadCsv(file: File): Promise<DatasetCreateResponse> {
   const formData = new FormData();
   formData.append("file", file);
-  formData.append("submitter_address", submitterAddress);
-  if (hashColumns) {
-    hashColumns.forEach((col) => formData.append("hash_columns", col));
-  }
   const { data } = await client.post("/datasets", formData, {
     headers: { "Content-Type": "multipart/form-data" },
+  });
+  return data;
+}
+
+/**
+ * Bind a submitter address to an analyzed dataset and get the transaction to sign.
+ *
+ * This is the wallet step: the address becomes the transaction's source account
+ * and the dataset's recorded submitter.
+ */
+export async function anchorDataset(
+  datasetId: string,
+  submitterAddress: string,
+): Promise<DatasetAnchorResponse> {
+  const { data } = await client.post(`/datasets/${datasetId}/anchor`, {
+    submitter_address: submitterAddress,
   });
   return data;
 }

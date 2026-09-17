@@ -25,8 +25,8 @@ resp = urllib.request.urlopen(f"{BASE}/datasets")
 print(json.loads(resp.read()))
 print()
 
-# Step 3: Create a dataset
-print("=== Step 3: Create Dataset ===")
+# Step 3: Analyze a dataset — no wallet involved, so no transaction comes back
+print("=== Step 3: Analyze Dataset (no wallet) ===")
 boundary = "----TestBoundary"
 csv_content = (
     "sample_id,latitude,longitude,pH,conductivity,dissolved_oxygen,temperature\n"
@@ -36,10 +36,6 @@ csv_content = (
 )
 
 body_parts = [
-    "--" + boundary,
-    'Content-Disposition: form-data; name="submitter_address"',
-    "",
-    SUBMITTER_PUBLIC_KEY,
     "--" + boundary,
     'Content-Disposition: form-data; name="file"; filename="sample.csv"',
     "Content-Type: text/csv",
@@ -63,9 +59,28 @@ try:
     print(f"dataset_hash: {result['dataset_hash']}")
     print(f"anomaly_score: {result['anomaly_report']['score']}")
     print(f"model_version: {result['anomaly_report']['model_version']}")
-    print(f"has_xdr: {bool(result['unsigned_transaction_xdr'])}")
+    print(f"has_xdr: {'unsigned_transaction_xdr' in result}")
     DATASET_ID = result["dataset_id"]
     DATASET_HASH = result["dataset_hash"]
+except urllib.error.HTTPError as e:
+    print(f"ERROR: {e.code}")
+    print(e.read().decode()[:500])
+    exit(1)
+print()
+
+# Step 3b: Anchor it — this is the step that needs the researcher's address
+print("=== Step 3b: Anchor Dataset (wallet step) ===")
+anchor_body = json.dumps({"submitter_address": SUBMITTER_PUBLIC_KEY}).encode()
+req = urllib.request.Request(
+    f"{BASE}/datasets/{DATASET_ID}/anchor",
+    data=anchor_body,
+    headers={"Content-Type": "application/json"},
+)
+try:
+    resp = urllib.request.urlopen(req, timeout=60)
+    anchored = json.loads(resp.read().decode())
+    print(f"Status: {resp.status}")
+    print(f"has_xdr: {bool(anchored['unsigned_transaction_xdr'])}")
 except urllib.error.HTTPError as e:
     print(f"ERROR: {e.code}")
     print(e.read().decode()[:500])
@@ -77,7 +92,7 @@ print("=== Step 4: List Datasets ===")
 resp = urllib.request.urlopen(f"{BASE}/datasets")
 data = json.loads(resp.read())
 print(f"Total: {data['total']}")
-print(f"First dataset status: {data['datasets'][0]['status']}")
+print(f"First dataset status: {data['datasets'][0]['status']}  (pending once anchored)")
 print()
 
 # Step 5: Get dataset by ID

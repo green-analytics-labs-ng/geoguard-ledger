@@ -9,6 +9,7 @@ import uuid
 import pytest
 from httpx import AsyncClient
 
+from app.core.exceptions import SubmitterAccountNotFoundError
 from tests.conftest import (
     ANOMALOUS_CSV,
     MOCK_LEDGER,
@@ -16,30 +17,61 @@ from tests.conftest import (
     SAMPLE_CSV,
     SAMPLE_JSON,
     SAMPLE_JSON_WRAPPED,
+    analyze,
+    analyze_and_anchor,
+    anchor,
 )
 
 TEST_ADDRESS = "GABCDEF123456789012345678901234567890123"
+OTHER_ADDRESS = "G" + "B" * 55
 
 
-# ── POST /api/v1/datasets ─────────────────────────────────────────
+# ── POST /api/v1/datasets (analyze) ──────────────────────────────
 
 
 @pytest.mark.asyncio
-async def test_create_dataset_success(client: AsyncClient, mock_build_transaction):
-    """Happy path: upload a valid CSV and get back a dataset response."""
+async def test_create_dataset_success(client: AsyncClient):
+    """Happy path: upload a valid CSV and get back an analysis.
+
+    No wallet is involved, so no transaction comes back: analysis only has to
+    produce a hash and an anomaly report.
+    """
+    data = await analyze(client)
+
+    assert data["dataset_id"] is not None
+    assert data["dataset_hash"] is not None
+    assert len(data["dataset_hash"]) == 64  # SHA-256 hex
+    assert "unsigned_transaction_xdr" not in data
+    assert data["anomaly_report"]["score"] is not None
+    assert data["anomaly_report"]["model_version"] == "isoforest_v1"
+
+
+@pytest.mark.asyncio
+async def test_analyze_persists_dataset_without_a_submitter(client: AsyncClient):
+    """An analyzed dataset is stored, but with nobody attached to it yet."""
+    created = await analyze(client)
+
+    response = await client.get(f"/api/v1/datasets/{created['dataset_id']}")
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "analyzed"
+
+
+@pytest.mark.asyncio
+async def test_analyze_rejects_the_old_submitter_field(client: AsyncClient):
+    """A caller still sending the address gets a 400, not a body without a transaction.
+
+    Ignoring the field would hand the old contract a 201 whose missing
+    transaction only surfaces later, at the signing step.
+    """
     response = await client.post(
         "/api/v1/datasets",
         data={"submitter_address": TEST_ADDRESS},
         files={"file": ("test.csv", SAMPLE_CSV, "text/csv")},
     )
-    assert response.status_code == 201
-    data = response.json()
-    assert data["dataset_id"] is not None
-    assert data["dataset_hash"] is not None
-    assert len(data["dataset_hash"]) == 64  # SHA-256 hex
-    assert data["unsigned_transaction_xdr"] is not None
-    assert data["anomaly_report"]["score"] is not None
-    assert data["anomaly_report"]["model_version"] == "isoforest_v1"
+
+    assert response.status_code == 400
+    assert "/anchor" in response.json()["detail"]
 
 
 @pytest.mark.asyncio
@@ -47,7 +79,6 @@ async def test_create_dataset_rejects_unsupported_format(client: AsyncClient):
     """Upload a non-CSV/non-JSON file should return 400."""
     response = await client.post(
         "/api/v1/datasets",
-        data={"submitter_address": TEST_ADDRESS},
         files={"file": ("test.txt", b"not csv", "text/plain")},
     )
     assert response.status_code == 400
@@ -59,22 +90,9 @@ async def test_create_dataset_rejects_missing_extension(client: AsyncClient):
     """Upload a file with no extension should return 400."""
     response = await client.post(
         "/api/v1/datasets",
-        data={"submitter_address": TEST_ADDRESS},
         files={"file": ("test", b"some data", "application/octet-stream")},
     )
     assert response.status_code == 400
-
-
-@pytest.mark.asyncio
-async def test_create_dataset_rejects_invalid_address(client: AsyncClient):
-    """Upload with an invalid Stellar address should return 400."""
-    response = await client.post(
-        "/api/v1/datasets",
-        data={"submitter_address": "XINVALID"},
-        files={"file": ("test.csv", SAMPLE_CSV, "text/csv")},
-    )
-    assert response.status_code == 400
-    assert "Stellar" in response.json()["detail"]
 
 
 @pytest.mark.asyncio
@@ -82,7 +100,6 @@ async def test_create_dataset_empty_csv(client: AsyncClient):
     """Upload an empty CSV should return 400."""
     response = await client.post(
         "/api/v1/datasets",
-        data={"submitter_address": TEST_ADDRESS},
         files={"file": ("test.csv", b"", "text/csv")},
     )
     assert response.status_code == 400
@@ -93,19 +110,14 @@ async def test_create_dataset_empty_csv(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_create_dataset_with_anomalies(client: AsyncClient, mock_build_transaction):
+async def test_create_dataset_with_anomalies(client: AsyncClient):
     """Upload a CSV with anomalous values should produce a non-zero anomaly score.
 
     1 anomalous row out of 6 yields ~16.7% score, which maps to "SUSPECT" label
     (between 5% and 20% threshold).
     """
-    response = await client.post(
-        "/api/v1/datasets",
-        data={"submitter_address": TEST_ADDRESS},
-        files={"file": ("anomalous.csv", ANOMALOUS_CSV, "text/csv")},
-    )
-    assert response.status_code == 201
-    data = response.json()
+    data = await analyze(client, ANOMALOUS_CSV, "anomalous.csv")
+
     assert data["anomaly_report"]["score"] > 0
     assert len(data["anomaly_report"]["flags"]) > 0
     # ~16.7% score is below 20% threshold, so label is SUSPECT
@@ -115,6 +127,125 @@ async def test_create_dataset_with_anomalies(client: AsyncClient, mock_build_tra
     )
 
 
+# ── POST /api/v1/datasets/{id}/anchor ─────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_anchor_dataset_returns_unsigned_transaction(
+    client: AsyncClient, mock_build_transaction
+):
+    """Anchoring an analyzed dataset builds the transaction to sign."""
+    created = await analyze(client)
+
+    anchored = await anchor(client, created["dataset_id"], TEST_ADDRESS)
+
+    assert anchored["dataset_id"] == created["dataset_id"]
+    assert anchored["dataset_hash"] == created["dataset_hash"]
+    assert anchored["unsigned_transaction_xdr"] is not None
+    # The transaction is built from the address that will sign it.
+    assert mock_build_transaction.await_count == 1
+    assert mock_build_transaction.await_args.args[0] == TEST_ADDRESS
+
+
+@pytest.mark.asyncio
+async def test_anchor_dataset_rejects_invalid_address(client: AsyncClient):
+    """Anchoring with a malformed Stellar address should return 400."""
+    created = await analyze(client)
+
+    response = await client.post(
+        f"/api/v1/datasets/{created['dataset_id']}/anchor",
+        json={"submitter_address": "XINVALID"},
+    )
+
+    assert response.status_code == 400
+    assert "Stellar" in response.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_anchor_dataset_unfunded_submitter_returns_400(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+):
+    """An unfunded wallet is the user's to fix, so it must not surface as a 500.
+
+    The response has to carry the Friendbot link, since funding the account is
+    the only action that resolves it.
+    """
+
+    async def _raise_unfunded(*args: object, **kwargs: object) -> str:
+        raise SubmitterAccountNotFoundError(
+            f"Your Stellar account {TEST_ADDRESS} is not funded on Testnet. "
+            "Fund it at https://friendbot.stellar.org?addr=GABC"
+        )
+
+    monkeypatch.setattr("app.api.v1.datasets.build_anchor_transaction", _raise_unfunded)
+    created = await analyze(client)
+
+    response = await client.post(
+        f"/api/v1/datasets/{created['dataset_id']}/anchor",
+        json={"submitter_address": TEST_ADDRESS},
+    )
+
+    assert response.status_code == 400
+    detail = response.json()["detail"]
+    assert TEST_ADDRESS in detail
+    assert "https://friendbot.stellar.org" in detail
+
+
+@pytest.mark.asyncio
+async def test_anchor_nonexistent_dataset(client: AsyncClient):
+    """Anchoring a dataset that does not exist should return 404."""
+    response = await client.post(
+        "/api/v1/datasets/nonexistent-id/anchor",
+        json={"submitter_address": TEST_ADDRESS},
+    )
+    assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_anchor_rejects_another_submitter(
+    client: AsyncClient, mock_build_transaction, mock_submit_transaction
+):
+    """A dataset already bound to an address cannot be re-anchored by someone else."""
+    dataset = await analyze_and_anchor(client, TEST_ADDRESS)
+
+    response = await client.post(
+        f"/api/v1/datasets/{dataset['dataset_id']}/anchor",
+        json={"submitter_address": OTHER_ADDRESS},
+    )
+
+    assert response.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_anchor_rejects_an_anchored_dataset(
+    client: AsyncClient, mock_build_transaction, mock_submit_transaction
+):
+    """Once the transaction is submitted, anchoring it again is a conflict."""
+    dataset = await analyze_and_anchor(client, TEST_ADDRESS)
+    await client.post(
+        f"/api/v1/datasets/{dataset['dataset_id']}/submit",
+        json={"signed_transaction_xdr": "AAAA..."},
+    )
+
+    response = await client.post(
+        f"/api/v1/datasets/{dataset['dataset_id']}/anchor",
+        json={"submitter_address": TEST_ADDRESS},
+    )
+
+    assert response.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_anchor_can_be_retried_before_submission(client: AsyncClient, mock_build_transaction):
+    """A rejected signature leaves the dataset pending, so signing can be retried."""
+    dataset = await analyze_and_anchor(client, TEST_ADDRESS)
+
+    anchored_again = await anchor(client, dataset["dataset_id"], TEST_ADDRESS)
+
+    assert anchored_again["unsigned_transaction_xdr"] is not None
+    assert mock_build_transaction.await_count == 2
+
+
 # ── POST /api/v1/datasets/{id}/submit ────────────────────────────
 
 
@@ -122,14 +253,8 @@ async def test_create_dataset_with_anomalies(client: AsyncClient, mock_build_tra
 async def test_submit_dataset_success(
     client: AsyncClient, mock_build_transaction, mock_submit_transaction
 ):
-    """Submit a signed transaction for a previously created dataset."""
-    # First create a dataset
-    create_resp = await client.post(
-        "/api/v1/datasets",
-        data={"submitter_address": TEST_ADDRESS},
-        files={"file": ("test.csv", SAMPLE_CSV, "text/csv")},
-    )
-    dataset_id = create_resp.json()["dataset_id"]
+    """Submit a signed transaction for a previously analyzed and anchored dataset."""
+    dataset_id = (await analyze_and_anchor(client, TEST_ADDRESS))["dataset_id"]
 
     # Now submit it
     response = await client.post(
@@ -159,12 +284,7 @@ async def test_submit_dataset_failure(
     client: AsyncClient, mock_build_transaction, mock_submit_transaction_failure
 ):
     """When Soroban submission fails, the dataset status should be 'failed'."""
-    create_resp = await client.post(
-        "/api/v1/datasets",
-        data={"submitter_address": TEST_ADDRESS},
-        files={"file": ("test.csv", SAMPLE_CSV, "text/csv")},
-    )
-    dataset_id = create_resp.json()["dataset_id"]
+    dataset_id = (await analyze_and_anchor(client, TEST_ADDRESS))["dataset_id"]
 
     response = await client.post(
         f"/api/v1/datasets/{dataset_id}/submit",
@@ -197,12 +317,7 @@ async def test_list_datasets_with_data(
     csv1 = f"sample_id,latitude,longitude,ph,conductivity\nA,0.0,0.0,7.2,450.0\n# {uuid.uuid4()}"
     csv2 = f"sample_id,latitude,longitude,ph,conductivity\nB,0.0,0.0,8.1,999.0\n# {uuid.uuid4()}"
     for csv_content in [csv1, csv2]:
-        create_resp = await client.post(
-            "/api/v1/datasets",
-            data={"submitter_address": TEST_ADDRESS},
-            files={"file": ("test.csv", csv_content, "text/csv")},
-        )
-        ds_id = create_resp.json()["dataset_id"]
+        ds_id = (await analyze_and_anchor(client, TEST_ADDRESS, csv_content))["dataset_id"]
         await client.post(
             f"/api/v1/datasets/{ds_id}/submit",
             json={"signed_transaction_xdr": "AAAA..."},
@@ -225,12 +340,7 @@ async def test_list_datasets_with_data(
 @pytest.mark.asyncio
 async def test_get_dataset_by_id(client: AsyncClient, mock_build_transaction):
     """Fetch a single dataset by its ID."""
-    create_resp = await client.post(
-        "/api/v1/datasets",
-        data={"submitter_address": TEST_ADDRESS},
-        files={"file": ("test.csv", SAMPLE_CSV, "text/csv")},
-    )
-    dataset_id = create_resp.json()["dataset_id"]
+    dataset_id = (await analyze_and_anchor(client, TEST_ADDRESS))["dataset_id"]
 
     response = await client.get(f"/api/v1/datasets/{dataset_id}")
     assert response.status_code == 200
@@ -264,33 +374,23 @@ async def test_health(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_create_dataset_json_success(client: AsyncClient, mock_build_transaction):
-    """Happy path: upload a valid JSON file and get back a dataset response."""
-    response = await client.post(
-        "/api/v1/datasets",
-        data={"submitter_address": TEST_ADDRESS},
-        files={"file": ("test.json", SAMPLE_JSON, "application/json")},
-    )
-    assert response.status_code == 201
-    data = response.json()
+async def test_create_dataset_json_success(client: AsyncClient):
+    """Happy path: upload a valid JSON file and get back an analysis."""
+    data = await analyze(client, SAMPLE_JSON, "test.json", "application/json")
+
     assert data["dataset_id"] is not None
     assert data["dataset_hash"] is not None
     assert len(data["dataset_hash"]) == 64  # SHA-256 hex
-    assert data["unsigned_transaction_xdr"] is not None
+    assert "unsigned_transaction_xdr" not in data
     assert data["anomaly_report"]["score"] is not None
     assert data["anomaly_report"]["model_version"] == "isoforest_v1"
 
 
 @pytest.mark.asyncio
-async def test_create_dataset_json_wrapped_success(client: AsyncClient, mock_build_transaction):
+async def test_create_dataset_json_wrapped_success(client: AsyncClient):
     """Upload JSON wrapped in {"data": [...]} should also succeed."""
-    response = await client.post(
-        "/api/v1/datasets",
-        data={"submitter_address": TEST_ADDRESS},
-        files={"file": ("test.json", SAMPLE_JSON_WRAPPED, "application/json")},
-    )
-    assert response.status_code == 201
-    data = response.json()
+    data = await analyze(client, SAMPLE_JSON_WRAPPED, "test.json", "application/json")
+
     assert data["dataset_hash"] is not None
     assert len(data["dataset_hash"]) == 64
 
@@ -300,7 +400,6 @@ async def test_create_dataset_json_invalid_structure(client: AsyncClient):
     """Upload malformed JSON should return 400."""
     response = await client.post(
         "/api/v1/datasets",
-        data={"submitter_address": TEST_ADDRESS},
         files={"file": ("test.json", b'{"not": "an array"}', "application/json")},
     )
     assert response.status_code == 400
@@ -312,7 +411,6 @@ async def test_create_dataset_json_syntax_error(client: AsyncClient):
     """Upload invalid JSON syntax should return 400."""
     response = await client.post(
         "/api/v1/datasets",
-        data={"submitter_address": TEST_ADDRESS},
         files={"file": ("test.json", b"not valid json", "application/json")},
     )
     assert response.status_code == 400
@@ -324,7 +422,6 @@ async def test_create_dataset_json_empty_array(client: AsyncClient):
     """Upload an empty JSON array should return 400."""
     response = await client.post(
         "/api/v1/datasets",
-        data={"submitter_address": TEST_ADDRESS},
         files={"file": ("test.json", b"[]", "application/json")},
     )
     assert response.status_code == 400
@@ -332,7 +429,7 @@ async def test_create_dataset_json_empty_array(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_create_dataset_json_with_anomalies(client: AsyncClient, mock_build_transaction):
+async def test_create_dataset_json_with_anomalies(client: AsyncClient):
     """Upload JSON with a clear outlier row should produce non-zero anomaly score."""
     anomalous_json = """[
       {"conductivity": 450.0, "dissolved_oxygen": 8.5, "pH": 7.2, "temperature": 22.1},
@@ -342,13 +439,8 @@ async def test_create_dataset_json_with_anomalies(client: AsyncClient, mock_buil
       {"conductivity": 449.0, "dissolved_oxygen": 8.6, "pH": 7.19, "temperature": 22.4},
       {"conductivity": 9999.0, "dissolved_oxygen": 0.1, "pH": 9.99, "temperature": 999.99}
     ]"""
-    response = await client.post(
-        "/api/v1/datasets",
-        data={"submitter_address": TEST_ADDRESS},
-        files={"file": ("test.json", anomalous_json, "application/json")},
-    )
-    assert response.status_code == 201
-    data = response.json()
+    data = await analyze(client, anomalous_json, "test.json", "application/json")
+
     assert data["anomaly_report"]["score"] > 0
     assert len(data["anomaly_report"]["flags"]) > 0
 
@@ -359,7 +451,6 @@ async def test_create_dataset_json_not_utf8(client: AsyncClient):
     # Latin-1 encoded data that is not valid UTF-8
     response = await client.post(
         "/api/v1/datasets",
-        data={"submitter_address": TEST_ADDRESS},
         files={"file": ("test.json", b"\xff\xfe\x00\x01", "application/json")},
     )
     assert response.status_code == 400

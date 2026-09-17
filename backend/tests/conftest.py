@@ -5,6 +5,7 @@ and mocks the Soroban RPC client to avoid external network calls.
 """
 
 from collections.abc import AsyncGenerator
+from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -98,6 +99,56 @@ SAMPLE_JSON = """[
 SAMPLE_JSON_WRAPPED = f'{{"data": {SAMPLE_JSON}}}'
 
 SAMPLE_HASH = _compute_hash(SAMPLE_CSV)
+
+
+# ── API helpers ───────────────────────────────────────────────────
+
+
+async def analyze(
+    client: AsyncClient,
+    content: str | bytes = SAMPLE_CSV,
+    filename: str = "test.csv",
+    content_type: str = "text/csv",
+) -> dict[str, Any]:
+    """Upload a file for analysis and return the parsed response body.
+
+    Analysis is wallet-free, so no address is involved. Tests that need a
+    transaction to sign call ``anchor`` afterwards; tests that only care about
+    hashing and the anomaly report stop here.
+    """
+    response = await client.post(
+        "/api/v1/datasets",
+        files={"file": (filename, content, content_type)},
+    )
+    assert response.status_code == 201, response.text
+    return response.json()
+
+
+async def anchor(client: AsyncClient, dataset_id: str, address: str) -> dict[str, Any]:
+    """Bind an address to an analyzed dataset and return its unsigned transaction."""
+    response = await client.post(
+        f"/api/v1/datasets/{dataset_id}/anchor",
+        json={"submitter_address": address},
+    )
+    assert response.status_code == 200, response.text
+    return response.json()
+
+
+async def analyze_and_anchor(
+    client: AsyncClient,
+    address: str,
+    content: str | bytes = SAMPLE_CSV,
+    filename: str = "test.csv",
+    content_type: str = "text/csv",
+) -> dict[str, Any]:
+    """Analyze an upload and anchor it, returning the analyze response body.
+
+    Used by the tests that go on to submit a signed transaction, which are the
+    ones that need the dataset to have been through both steps.
+    """
+    dataset = await analyze(client, content, filename, content_type)
+    await anchor(client, dataset["dataset_id"], address)
+    return dataset
 
 
 # ── Mock Soroban responses ────────────────────────────────────────
