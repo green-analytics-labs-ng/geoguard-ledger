@@ -19,6 +19,15 @@ class Settings(BaseSettings):
     api_port: int = 8000
     api_cors_origins: list[str] = ["http://localhost:5173"]
 
+    # ── Authentication ────────────────────────────────────────────
+    # Comma-separated keys accepted in the ``X-API-Key`` header on the write
+    # endpoints (uploads and anchoring). Empty disables authentication, which
+    # is the development default so a local checkout runs without setup;
+    # deployments are expected to set at least one key. Verification and health
+    # stay public on purpose — permissionless verification is a feature, not an
+    # oversight.
+    api_keys: str = ""
+
     # Maximum accepted upload size in bytes. The frontend enforces the same
     # limit client-side, but that check is trivially bypassed by calling the
     # API directly, so it is enforced again here before the body is buffered.
