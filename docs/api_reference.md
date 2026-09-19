@@ -88,13 +88,15 @@ detected from the filename extension (case-insensitive):
 
 | Extension | Hashing | Analysis |
 |-----------|---------|----------|
-| `.csv` | Canonical CSV (RFC 4180 parsing, UTF-8, normalized line endings, numeric truncation) | Parsed as CSV |
+| `.csv` | Canonical CSV (RFC 4180 parsing, UTF-8, normalized line endings, Unicode NFC, one numeric form rounded half-even to 6 d.p., original row order) | Parsed as CSV |
 | `.json` | Same canonical CSV as the equivalent CSV upload | Parsed as CSV |
 | `.xml` | Canonical XML bytes | Flattened with `pandas.read_xml` |
 
 Uploads that carry the same information produce the same `dataset_hash`
 regardless of formatting. CSV and JSON are normalized to one canonical CSV form
-(so an integer stays an integer and hashes identically in both). XML is never
+(so an integer stays an integer and hashes identically in both). `dataset_hash`
+responses also carry the `canonicalization_version` of the rules that produced
+them. XML is never
 converted to CSV before hashing — element structure and attributes are part of
 the fingerprint — and is canonicalized as XML: comments and processing
 instructions are dropped, attributes are sorted alphabetically, insignificant

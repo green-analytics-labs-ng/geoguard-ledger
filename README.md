@@ -41,7 +41,7 @@ Environmental policy, public health interventions, and climate adaptation strate
 
 ### 🔬 Research-Grade Integrity
 
-- **Deterministic SHA-256 Hashing** — CSV data is canonicalized (RFC 4180, UTF-8 normalization, numeric truncation, sorted rows) before hashing, ensuring any third party can re-compute and verify the exact same fingerprint.
+- **Deterministic SHA-256 Hashing** — CSV data is canonicalized (RFC 4180, UTF-8, Unicode NFC, one numeric form rounded to 6 decimal places, original row order) before hashing, ensuring any third party can re-compute and verify the exact same fingerprint. The rules are versioned, and that version is returned with every hash so a verifier knows which rule set produced it.
 - **Tamper-Evident Proofs** — Once anchored, any alteration to the source data — even a single decimal place — produces a different hash, immediately exposing tampering.
 
 ### 🤖 AI Anomaly Detection
