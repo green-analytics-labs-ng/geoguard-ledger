@@ -120,6 +120,15 @@ jobs:
       - name: Install dependencies
         run: uv sync --dev
 
+      # pip-audit scores the resolved dependency set against the GitHub Advisory
+      # database and PyPI's OSV feed. `uv run --with` drops it into the same
+      # environment `uv sync` just built, so it audits what CI actually installs
+      # rather than what the constraints nominally allow. A known vulnerability
+      # fails the job here; Dependabot (.github/dependabot.yml) is what keeps the
+      # fixed versions arriving before that happens.
+      - name: Audit dependencies with pip-audit
+        run: uv run --with pip-audit pip-audit
+
       - name: Lint with ruff
         run: uv run ruff check .
 
