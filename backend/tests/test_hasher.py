@@ -26,3 +26,8 @@ def test_rounding_is_not_truncation() -> None:
 def test_integer_and_decimal_forms_are_distinct() -> None:
     """5 and 5.0 currently hash differently: integers keep their written form."""
     assert _hash_cell("5") != _hash_cell("5.0")
+
+
+def test_scientific_and_decimal_notation_are_distinct() -> None:
+    """1e-3 and 0.001 currently hash differently: only decimals are converted."""
+    assert _hash_cell("1e-3") != _hash_cell("0.001")
