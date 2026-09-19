@@ -7,6 +7,8 @@ every write endpoint must refuse an unauthenticated caller, while verification
 and health stay public.
 """
 
+from unittest.mock import AsyncMock, patch
+
 import pytest
 from httpx import AsyncClient, Response
 
@@ -171,6 +173,48 @@ async def test_every_configured_key_is_accepted(
 
     assert first.status_code == 201, first.text
     assert second.status_code == 201, second.text
+
+
+@pytest.mark.asyncio
+async def test_reads_stay_public_when_auth_is_enabled(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    enable_auth(monkeypatch, API_KEY)
+
+    response = await client.get("/api/v1/datasets")
+
+    assert response.status_code == 200
+
+
+# ── Public endpoints ──────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_verify_stays_public_when_auth_is_enabled(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch, mock_verify_on_chain_not_found
+) -> None:
+    """Permissionless verification is the point — it must not need a shared key."""
+    enable_auth(monkeypatch, API_KEY)
+
+    response = await client.post("/api/v1/verify", params={"dataset_hash": "a" * 64})
+
+    assert response.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_health_stays_public_when_auth_is_enabled(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    enable_auth(monkeypatch, API_KEY)
+
+    with patch(
+        "app.api.v1.health.check_rpc_connectivity",
+        new=AsyncMock(return_value=True),
+    ):
+        response = await client.get("/api/v1/health")
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "ok"
 
 
 # ── Key parsing ───────────────────────────────────────────────────
