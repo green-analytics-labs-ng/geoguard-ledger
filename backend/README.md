@@ -18,7 +18,7 @@ Project-wide documentation lives in [`../docs`](../docs):
 |---|---|
 | `app/api/v1/` | Route handlers (`datasets`, `batches`, `verify`, `maintenance`, `health`) |
 | `app/services/` | Canonicalization, hashing, Merkle trees, Soroban client, anomaly detection |
-| `app/models/` | SQLAlchemy models and Pydantic schemas |
+| `app/models/` | SQLAlchemy models (request/response schemas live with their routes) |
 | `app/jobs/` | Scheduled work — currently TTL renewal |
 | `alembic/` | Schema migrations |
 | `tests/` | Pytest suite (SQLite-backed; no network required) |

@@ -861,8 +861,7 @@ geoguard-ledger/
 │   │   │   ├── anomaly.py      # AI anomaly detection service
 │   │   │   ├── merkle.py       # Merkle tree construction + inclusion proofs
 │   │   │   ├── ttl_renewal.py  # Entry expiry math + renewal orchestration
-│   │   │   ├── soroban.py      # Soroban RPC client, tx building
-│   │   │   └── storage.py      # IPFS integration (Phase 3)
+│   │   │   └── soroban.py      # Soroban RPC client, tx building
 │   │   ├── jobs/
 │   │   │   ├── __init__.py
 │   │   │   └── renew_ttl.py    # Scheduled TTL renewal job (roots + records)
