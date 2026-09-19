@@ -96,6 +96,24 @@ describe("AppLayout", () => {
     expect(brand.getAttribute("aria-current")).toBeNull();
   });
 
+  it("offers a skip link to the content before the navigation", async () => {
+    window.history.pushState({}, "", "/datasets");
+    const { container } = render(<App />);
+
+    await screen.findByRole("heading", { name: "Datasets" });
+
+    const skip = screen.getByRole("link", { name: "Skip to content" });
+    expect(skip.getAttribute("href")).toBe("#main-content");
+    // The target has to exist and be focusable, or the link goes nowhere.
+    const main = container.querySelector("#main-content");
+    expect(main).toBeTruthy();
+    expect(main?.getAttribute("tabindex")).toBe("-1");
+
+    // It comes before every section link, which is the whole point of it.
+    const focusable = container.querySelectorAll("a[href], button");
+    expect(focusable[0]).toBe(skip);
+  });
+
   it("keeps the header while a route's chunk loads", async () => {
     window.history.pushState({}, "", "/");
     render(<App />);

@@ -59,6 +59,16 @@ function navLinkClass({ isActive }: { isActive: boolean }): string {
 export default function AppLayout() {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
+      {/* First in the tab order, and hidden until it has focus. A keyboard user
+          should not have to tab through five section links on every page to
+          reach the content. */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:m-3 focus:rounded-lg focus:bg-white focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-stellar focus:shadow-lg focus:outline-none focus:ring-2 focus:ring-stellar"
+      >
+        Skip to content
+      </a>
+
       <header className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
           <Link to="/" className="text-lg font-bold text-stellar">
@@ -79,7 +89,10 @@ export default function AppLayout() {
         </div>
       </header>
 
-      <main className="flex-1">
+      {/* `tabIndex={-1}` so the skip link can move focus here: an element that
+          is not focusable would scroll the page and leave the focus ring
+          behind in the header. */}
+      <main id="main-content" tabIndex={-1} className="flex-1 focus:outline-none">
         {/* Inside the shell rather than above it, so navigating to a route
             whose chunk has not been downloaded swaps the page and leaves the
             header where it is. */}
