@@ -44,7 +44,9 @@ describe("App routing", () => {
     goTo("/");
     render(<App />);
 
-    expect(await screen.findByRole("heading", { name: "GeoGuard Ledger" })).toBeTruthy();
+    // The application name is the layout's brand link, not a heading; the
+    // heading belongs to the page you are on.
+    expect(await screen.findByRole("heading", { name: "Dashboard" })).toBeTruthy();
   });
 
   it("renders the upload page at /upload", async () => {
@@ -75,8 +77,6 @@ describe("App routing", () => {
 
     render(<App />);
 
-    await waitFor(() =>
-      expect(screen.getByRole("heading", { name: "GeoGuard Ledger" })).toBeTruthy(),
-    );
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Dashboard" })).toBeTruthy());
   });
 });
