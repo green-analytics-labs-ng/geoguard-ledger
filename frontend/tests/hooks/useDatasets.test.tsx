@@ -87,11 +87,11 @@ describe("useDatasets", () => {
     });
 
     expect(api.getDataset).toHaveBeenCalledWith("42");
-    expect(fetched).toEqual(dataset("42"));
+    expect(fetched).toEqual({ status: "found", dataset: dataset("42") });
   });
 
-  it("returns null from getDataset when the request fails", async () => {
-    api.getDataset.mockRejectedValue(new Error("404"));
+  it("reports a 404 as not found", async () => {
+    api.getDataset.mockRejectedValue({ response: { status: 404, data: { detail: "No such dataset" } } });
     const { result } = renderHook(() => useDatasets());
     await waitFor(() => expect(result.current.loading).toBe(false));
 
@@ -100,6 +100,21 @@ describe("useDatasets", () => {
       fetched = await result.current.getDataset("missing");
     });
 
-    expect(fetched).toBeNull();
+    expect(fetched).toEqual({ status: "not-found" });
+  });
+
+  it("reports a network failure as an error, not as a missing dataset", async () => {
+    // No response at all — a timeout or a dropped connection. Saying "not found"
+    // here would be telling the researcher their data is gone.
+    api.getDataset.mockRejectedValue(new Error("Network Error"));
+    const { result } = renderHook(() => useDatasets());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    let fetched: unknown = "unset";
+    await act(async () => {
+      fetched = await result.current.getDataset("42");
+    });
+
+    expect(fetched).toEqual({ status: "error", message: "Network Error" });
   });
 });
