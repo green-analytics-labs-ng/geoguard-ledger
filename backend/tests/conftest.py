@@ -14,6 +14,7 @@ import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
+from app.config import settings
 from app.db.base import Base
 from app.db.session import get_db
 from app.main import create_app
@@ -38,6 +39,17 @@ async def setup_database() -> AsyncGenerator[None, None]:
     yield
     async with test_engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
+
+
+@pytest.fixture(autouse=True)
+def disable_auth_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Run every test with authentication disabled unless it enables it itself.
+
+    Otherwise a developer's local ``.env`` that sets ``API_KEYS`` would make the
+    whole suite fail, and tests that are not about auth would have to carry a
+    key in every request. ``test_auth.py`` opts in per test.
+    """
+    monkeypatch.setattr(settings, "api_keys", "")
 
 
 async def override_get_db() -> AsyncGenerator[AsyncSession, None]:
