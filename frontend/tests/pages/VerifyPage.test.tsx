@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { ROUTER_FUTURE_FLAGS } from "../../src/routerConfig";
 
@@ -85,5 +85,38 @@ describe("VerifyPage linked hash", () => {
     renderPage("/verify?dataset_hash=not-a-hash");
 
     expect(verifyApi.verifyByHash).not.toHaveBeenCalled();
+  });
+});
+
+describe("VerifyPage accessible names", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    wallet.value = {
+      connected: false,
+      publicKey: null,
+      network: null,
+      networkPassphrase: "",
+      error: null,
+      connect: vi.fn(),
+      disconnect: vi.fn(),
+      signTx: vi.fn(),
+    };
+  });
+
+  it("associates the hash label with its input", () => {
+    renderPage();
+
+    // Found by its label rather than its placeholder: a placeholder is a hint,
+    // not a name, and it disappears as soon as the user types.
+    expect(screen.getByLabelText("Dataset Hash (SHA-256)")).toBe(hashInput());
+  });
+
+  it("associates the file label with the file input", () => {
+    renderPage();
+    fireEvent.click(screen.getByRole("button", { name: "By File Upload" }));
+
+    const input = screen.getByLabelText("Upload a data file to re-compute its hash");
+    expect(input).toBeInstanceOf(HTMLInputElement);
+    expect((input as HTMLInputElement).type).toBe("file");
   });
 });

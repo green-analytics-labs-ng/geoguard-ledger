@@ -98,14 +98,17 @@ export default function VerifyPage() {
 
       {/* Hash input */}
       {mode === "hash" && (
-        <div className="card mb-6">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Dataset Hash (SHA-256)
-          </label>
-          <div className="flex gap-3">
-            <input
-              type="text"
-              value={hashInput}
+        <div className="card mb-6">            <label
+              htmlFor="dataset-hash"
+              className="block text-sm font-medium text-gray-700 mb-2"
+            >
+              Dataset Hash (SHA-256)
+            </label>
+            <div className="flex gap-3">
+              <input
+                id="dataset-hash"
+                type="text"
+                value={hashInput}
               onChange={(e) => setHashInput(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Paste a 64-character hex hash..."
@@ -125,12 +128,12 @@ export default function VerifyPage() {
 
       {/* File upload */}
       {mode === "file" && (
-        <div className="card mb-6">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Upload a data file to re-compute its hash
-          </label>
-          <input
-            type="file"
+        <div className="card mb-6">            <label htmlFor="verify-file" className="block text-sm font-medium text-gray-700 mb-2">
+              Upload a data file to re-compute its hash
+            </label>
+            <input
+              id="verify-file"
+              type="file"
             accept=".csv,.json,.xml"
             onChange={handleFileSelect}
             className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-stellar file:text-white hover:file:bg-blue-700 file:cursor-pointer file:transition-colors"
