@@ -1,5 +1,20 @@
+import { Suspense } from "react";
 import { Link, Outlet } from "react-router-dom";
 import WalletConnector from "./WalletConnector";
+
+/**
+ * Shown while the current route's chunk is being fetched.
+ *
+ * `role="status"` with `aria-live="polite"` announces the wait to screen
+ * readers rather than silently swapping the content in.
+ */
+function RouteLoadingFallback() {
+  return (
+    <div role="status" aria-live="polite" className="p-8 text-center text-sm text-gray-500">
+      Loading…
+    </div>
+  );
+}
 
 /**
  * The navigation, in the order the routes are declared.
@@ -52,7 +67,12 @@ export default function AppLayout() {
       </header>
 
       <main className="flex-1">
-        <Outlet />
+        {/* Inside the shell rather than above it, so navigating to a route
+            whose chunk has not been downloaded swaps the page and leaves the
+            header where it is. */}
+        <Suspense fallback={<RouteLoadingFallback />}>
+          <Outlet />
+        </Suspense>
       </main>
     </div>
   );
