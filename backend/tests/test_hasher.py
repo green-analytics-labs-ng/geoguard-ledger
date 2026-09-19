@@ -28,14 +28,20 @@ def test_rounding_is_not_truncation() -> None:
     assert _hash_cell("7.1234567") != _hash_cell("7.123456")
 
 
-def test_integer_and_decimal_forms_are_distinct() -> None:
-    """5 and 5.0 currently hash differently: integers keep their written form."""
-    assert _hash_cell("5") != _hash_cell("5.0")
+def test_integer_and_decimal_forms_are_equivalent() -> None:
+    """5 and 5.0 are the same number, so they hash identically."""
+    assert _hash_cell("5") == _hash_cell("5.0")
 
 
-def test_scientific_and_decimal_notation_are_distinct() -> None:
-    """1e-3 and 0.001 currently hash differently: only decimals are converted."""
-    assert _hash_cell("1e-3") != _hash_cell("0.001")
+def test_scientific_and_decimal_notation_are_equivalent() -> None:
+    """1e-3 and 0.001 are the same number, so they hash identically."""
+    assert _hash_cell("1e-3") == _hash_cell("0.001")
+
+
+def test_leading_zero_cells_are_identifiers_not_numbers() -> None:
+    """A cell like 0001 is an identifier, so it is never rewritten as 1."""
+    assert _hash_cell("0001") != _hash_cell("1")
+    assert _hash_cell("0001") == _hash_cell("0001")
 
 
 def test_composed_and_decomposed_unicode_are_equivalent() -> None:

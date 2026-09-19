@@ -8,7 +8,8 @@ fingerprint reproducible by any third party:
 - Line endings normalized to \\n
 - Every cell normalized to Unicode NFC
 - Leading and trailing whitespace stripped from every cell
-- Numeric cells rounded half-even to 6 decimal places
+- Integer, decimal, and scientific-notation cells rendered as one canonical
+  decimal form, rounded half-even to 6 decimal places
 - Row order preserved exactly as it appears in the file
 """
 
@@ -17,6 +18,7 @@ import hashlib
 import io
 import re
 import unicodedata
+from decimal import Decimal, InvalidOperation
 
 # Version of the canonicalization rules implemented here. Any change to a rule
 # re-hashes every dataset, and a hash anchored under an older rule set can no
@@ -60,16 +62,31 @@ def _canonicalize(csv_text: str) -> str:
     return output.getvalue()
 
 
-_NUMERIC_RE = re.compile(r"^-?\d+(?:\.\d+)?$")
+# A numeric cell in JSON-number form: optional sign, no leading zeros in the
+# integer part, optional fraction, optional exponent. Leading zeros are
+# deliberately excluded so identifiers such as "0001" are never rewritten as
+# the number 1.
+_NUMERIC_RE = re.compile(r"^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?$")
+
+_DECIMAL_PLACES = 6
+_ZERO = "0.000000"
 
 
 def _canonicalize_cell(cell: str) -> str:
     """Canonicalize a single CSV cell."""
     cell = unicodedata.normalize("NFC", cell).strip()
-    if _NUMERIC_RE.match(cell) and "." in cell:
-        try:
-            value = float(cell)
-            cell = f"{value:.6f}"
-        except ValueError:
-            pass
-    return cell
+    if not _NUMERIC_RE.match(cell):
+        return cell
+
+    # Integers, decimals, and scientific notation collapse into one numeric
+    # form: a plain decimal rounded half-even to a fixed number of places. So
+    # "5", "5.0", "1e-3" and "0.001" cannot produce different hashes.
+    try:
+        rendered = format(Decimal(cell), f".{_DECIMAL_PLACES}f")
+    except (InvalidOperation, ValueError):
+        return cell
+
+    # A value that rounds to zero has no meaningful sign (-0 -> 0).
+    if rendered.startswith("-") and set(rendered[1:]) <= {".", "0"}:
+        return _ZERO
+    return rendered
