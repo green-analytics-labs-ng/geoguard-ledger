@@ -185,10 +185,13 @@ jobs:
 
       # Production dependencies only. A dev-toolchain advisory never reaches a
       # user, and failing on one would train us to wave the check through; the
-      # packages that ship are the ones that have to be clean. `npm audit fix`
-      # and Dependabot supply the upgrades this gate asks for.
+      # packages that ship are the ones that have to be clean.
+      #
+      # The script, not plain `npm audit`, because a few findings here can only be
+      # closed by a semver-major upgrade. It fails on anything new while naming
+      # what is accepted and why — see scripts/audit-production.mjs.
       - name: Audit production dependencies
-        run: npm audit --omit=dev
+        run: npm run audit:prod
 
       - name: Type check
         run: npm run typecheck

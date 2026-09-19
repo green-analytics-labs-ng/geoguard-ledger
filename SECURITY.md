@@ -69,6 +69,22 @@ Out of scope:
 - The known limitation that an anchor proves *existence and integrity*, not
   authorship — see `docs/contract_security.md`.
 
+## Known advisories
+
+Not everything the dependency scanners report can be closed by upgrading, and
+pretending otherwise just leaves a permanently red check. The production
+dependency audit (`npm run audit:prod`, run in CI) therefore fails on anything
+*new* while naming what is accepted and why. The current list lives in
+`frontend/scripts/audit-production.mjs`, and the notable one is:
+
+- **`toml` (GHSA-82x6-q7mm-w9cf, GHSA-v5mp-jgw5-2x6j)** — high severity,
+  transitive through `@stellar/stellar-sdk`, reachable only from that SDK's
+  `StellarToml` resolver, which this application never calls. The fix is
+  `@stellar/stellar-sdk@17`, a major upgrade tracked separately.
+
+If you believe one of these is reachable in a way the note does not account for,
+that is exactly the kind of report this policy wants.
+
 ## Supported versions
 
 The project is pre-1.0. Fixes land on `main` and are released as a new tag; only
