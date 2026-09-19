@@ -21,3 +21,8 @@ def test_numbers_round_to_six_decimal_places() -> None:
 def test_rounding_is_not_truncation() -> None:
     """The rounded form must not collide with the truncated form."""
     assert _hash_cell("7.1234567") != _hash_cell("7.123456")
+
+
+def test_integer_and_decimal_forms_are_distinct() -> None:
+    """5 and 5.0 currently hash differently: integers keep their written form."""
+    assert _hash_cell("5") != _hash_cell("5.0")
