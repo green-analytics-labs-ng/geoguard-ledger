@@ -163,6 +163,13 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Production dependencies only. A dev-toolchain advisory never reaches a
+      # user, and failing on one would train us to wave the check through; the
+      # packages that ship are the ones that have to be clean. `npm audit fix`
+      # and Dependabot supply the upgrades this gate asks for.
+      - name: Audit production dependencies
+        run: npm audit --omit=dev
+
       - name: Type check
         run: npm run typecheck
 
