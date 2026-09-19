@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { Link, Outlet } from "react-router-dom";
+import { Link, NavLink, Outlet } from "react-router-dom";
 import WalletConnector from "./WalletConnector";
 
 /**
@@ -25,12 +25,29 @@ function RouteLoadingFallback() {
  * There is one header now, owned here.
  */
 const NAV_ITEMS = [
-  { to: "/", label: "Dashboard" },
+  // `end` only on the root: every path starts with "/", and the section links
+  // are meant to stay marked while you are inside them — Datasets while reading
+  // a dataset, Upload while signing a batch.
+  { to: "/", label: "Dashboard", end: true },
   { to: "/upload", label: "Upload" },
   { to: "/datasets", label: "Datasets" },
   { to: "/verify", label: "Verify" },
   { to: "/settings", label: "Settings" },
 ];
+
+/**
+ * Styling for the current section.
+ *
+ * `NavLink` marks itself with `aria-current="page"` — that attribute is what
+ * tells a screen reader which section the page is in — so this function only
+ * mirrors it for sighted users, and the two can never disagree.
+ */
+function navLinkClass({ isActive }: { isActive: boolean }): string {
+  return [
+    "transition-colors",
+    isActive ? "text-stellar font-semibold" : "text-gray-600 hover:text-stellar",
+  ].join(" ");
+}
 
 /**
  * The shell every route renders inside.
@@ -50,13 +67,9 @@ export default function AppLayout() {
 
           <nav aria-label="Main" className="flex flex-wrap items-center gap-4 text-sm">
             {NAV_ITEMS.map((item) => (
-              <Link
-                key={item.to}
-                to={item.to}
-                className="text-gray-600 hover:text-stellar transition-colors"
-              >
+              <NavLink key={item.to} to={item.to} end={item.end} className={navLinkClass}>
                 {item.label}
-              </Link>
+              </NavLink>
             ))}
           </nav>
 
