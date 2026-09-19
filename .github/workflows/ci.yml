@@ -34,6 +34,15 @@ jobs:
             contracts/geoguard-ledger/target
           key: ${{ runner.os }}-cargo-${{ hashFiles('contracts/geoguard-ledger/Cargo.lock') }}
 
+      # cargo-audit checks Cargo.lock against the RustSec advisory database. It
+      # reads the lockfile rather than the compiled output, so it needs no wasm32
+      # target and belongs before the target-specific steps. `--locked` pins
+      # cargo-audit's own dependency tree to what was published and reviewed.
+      - name: Audit dependencies with cargo-audit
+        run: |
+          cargo install cargo-audit --locked
+          cargo audit
+
       - name: Check formatting
         run: cargo fmt --all -- --check
 
