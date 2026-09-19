@@ -1,17 +1,22 @@
 """SHA-256 hashing service with CSV canonicalization.
 
-Canonicalization rules ensure deterministic hashing:
+Canonicalization v1 (``CANONICALIZATION_VERSION``) makes a dataset's
+fingerprint reproducible by any third party:
+
 - RFC 4180-compliant CSV parsing
 - UTF-8 encoding (no BOM)
 - Line endings normalized to \\n
-- Numeric columns truncated to 6 decimal places
-- Trailing whitespace stripped from all cells
+- Every cell normalized to Unicode NFC
+- Leading and trailing whitespace stripped from every cell
+- Numeric cells rounded half-even to 6 decimal places
+- Row order preserved exactly as it appears in the file
 """
 
 import csv
 import hashlib
 import io
 import re
+import unicodedata
 
 # Version of the canonicalization rules implemented here. Any change to a rule
 # re-hashes every dataset, and a hash anchored under an older rule set can no
@@ -60,7 +65,7 @@ _NUMERIC_RE = re.compile(r"^-?\d+(?:\.\d+)?$")
 
 def _canonicalize_cell(cell: str) -> str:
     """Canonicalize a single CSV cell."""
-    cell = cell.strip()
+    cell = unicodedata.normalize("NFC", cell).strip()
     if _NUMERIC_RE.match(cell) and "." in cell:
         try:
             value = float(cell)
