@@ -7,6 +7,7 @@ blocking the FastAPI async event loop.
 
 import asyncio
 import logging
+import re
 from typing import Any
 
 from stellar_sdk import (
@@ -25,9 +26,35 @@ from stellar_sdk.soroban_server import GetTransactionStatus
 from stellar_sdk.xdr import SCValType
 
 from app.config import settings
-from app.core.exceptions import SubmitterAccountNotFoundError
+from app.core.exceptions import AnchorAlreadyExistsError, SubmitterAccountNotFoundError
 
 logger = logging.getLogger(__name__)
+
+# ── Contract error translation ────────────────────────────────────
+# The contract refuses to anchor a hash or Merkle root it already holds (see
+# contracts/geoguard-ledger/src/errors.rs). A failed simulation reports that as
+# "Error(Contract, #N)", and since anchoring never overwrites, those codes are
+# conflicts the caller can act on — not the retryable failure every other
+# simulation error represents. 3 = HashAlreadyAnchored, 6 = RootAlreadyAnchored.
+_ALREADY_ANCHORED_CODES = {
+    3: "This dataset hash is already anchored on-chain",
+    6: "This Merkle root is already anchored, so its batch needs no second anchor",
+}
+_CONTRACT_ERROR_CODE = re.compile(r"Error\(\s*Contract\s*,\s*#?(\d+)\s*\)")
+
+
+def _already_anchored_error(simulation_error: str) -> AnchorAlreadyExistsError | None:
+    """Translate a duplicate-anchor contract error into a typed conflict.
+
+    Returns ``None`` for every other simulation error, so an unrelated failure
+    is never mislabelled as "already anchored".
+    """
+    match = _CONTRACT_ERROR_CODE.search(simulation_error)
+    if match is None:
+        return None
+    message = _ALREADY_ANCHORED_CODES.get(int(match.group(1)))
+    return AnchorAlreadyExistsError(message) if message else None
+
 
 # ── Network funding ───────────────────────────────────────────────
 # The network passphrase is the only thing here that separates Testnet from
@@ -185,7 +212,8 @@ async def _build_and_prepare_unsigned(
     Raises:
         ValueError: If ``CONTRACT_ID`` is unset.
         SubmitterAccountNotFoundError: If the submitter has no on-chain account.
-        RuntimeError: If simulation fails or the contract rejects the call.
+        AnchorAlreadyExistsError: If the contract already holds this hash or root.
+        RuntimeError: If simulation fails for any other reason.
     """
     if not settings.contract_id:
         raise ValueError("CONTRACT_ID not configured — cannot build transaction")
@@ -232,6 +260,9 @@ async def _build_and_prepare_unsigned(
         raise RuntimeError(f"Transaction simulation failed: {exc}") from exc
 
     if simulation.error:
+        conflict = _already_anchored_error(simulation.error)
+        if conflict is not None:
+            raise conflict
         raise RuntimeError(f"Transaction simulation error: {simulation.error}")
 
     # 3. Assemble the transaction with simulation results.
