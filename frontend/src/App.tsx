@@ -2,7 +2,8 @@ import { Suspense } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { WalletProvider } from "./context/WalletContext";
 import ErrorBoundary from "./components/ErrorBoundary";
-import { ROUTER_FUTURE_FLAGS, routes } from "./routes";
+import { ROUTER_FUTURE_FLAGS } from "./routerConfig";
+import { routes } from "./routes";
 
 // Shown while a lazily-loaded route chunk is fetched. `role="status"` with
 // `aria-live="polite"` announces the wait to screen readers rather than

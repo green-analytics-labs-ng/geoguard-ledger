@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { ROUTER_FUTURE_FLAGS } from "../../src/routes";
+import { ROUTER_FUTURE_FLAGS } from "../../src/routerConfig";
 import DatasetTable from "../../src/components/DatasetTable";
 import type { DatasetResponse } from "../../src/types";
 
