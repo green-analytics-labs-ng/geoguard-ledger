@@ -4,6 +4,7 @@ Uses an in-memory SQLite database (aiosqlite) for isolated test DB state
 and mocks the Soroban RPC client to avoid external network calls.
 """
 
+import uuid
 from collections.abc import AsyncGenerator
 from typing import Any
 from unittest.mock import patch
@@ -99,6 +100,17 @@ SAMPLE_JSON = """[
 SAMPLE_JSON_WRAPPED = f'{{"data": {SAMPLE_JSON}}}'
 
 SAMPLE_HASH = _compute_hash(SAMPLE_CSV)
+
+
+def unique_sample_csv() -> str:
+    """SAMPLE_CSV plus one plausible row, so repeated uploads hash differently.
+
+    ``dataset_hash`` is unique, so a test that uploads more than once needs
+    distinct content. The row keeps the file's six columns rather than being a
+    comment: a comment line parses as a single column and breaks the analyzer.
+    """
+    temperature = 22.0 + (uuid.uuid4().int % 1000) / 1000
+    return f"{SAMPLE_CSV}S006,34.053700,-118.245200,7.21,451.00,8.55,{temperature:.3f}\n"
 
 
 # ── API helpers ───────────────────────────────────────────────────
