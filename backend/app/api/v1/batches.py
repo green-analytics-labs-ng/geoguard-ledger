@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.core.exceptions import MerkleError
+from app.core.security import verify_api_key
 from app.db.session import get_db
 from app.models.batch import Batch
 from app.models.dataset import Dataset
@@ -103,6 +104,7 @@ def _batch_to_response(batch: Batch) -> BatchResponse:
 async def create_batch(
     body: BatchCreateRequest,
     db: AsyncSession = Depends(get_db),  # noqa: B008
+    _api_key: str = Depends(verify_api_key),  # noqa: B008
 ) -> Any:
     """Build a Merkle root over the given datasets and return an unsigned anchor transaction.
 
@@ -223,6 +225,7 @@ async def submit_batch(
     batch_id: str,
     body: BatchSubmitRequest,
     db: AsyncSession = Depends(get_db),  # noqa: B008
+    _api_key: str = Depends(verify_api_key),  # noqa: B008
 ) -> Any:
     """Submit a researcher-signed root transaction and mark the batch anchored."""
     result = await db.execute(select(Batch).where(Batch.batch_id == batch_id))

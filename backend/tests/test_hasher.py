@@ -8,7 +8,7 @@ docs/canonicalization.md.
 
 import pytest
 
-from app.services.hasher import CANONICALIZATION_VERSION, compute_hash
+from app.services.hasher import CANONICALIZATION_VERSION, _canonicalize_cell, compute_hash
 
 
 def _hash_cell(cell: str) -> str:
@@ -58,6 +58,24 @@ def test_composed_and_decomposed_unicode_are_equivalent() -> None:
 def test_row_order_is_significant() -> None:
     """Rows keep their file order; swapping them must change the hash."""
     assert compute_hash("value\n1\n2\n") != compute_hash("value\n2\n1\n")
+
+
+def test_out_of_range_exponents_are_left_as_text() -> None:
+    """An exponent Decimal cannot represent falls back to the raw cell.
+
+    The form still matches the numeric pattern, but it is not a number any
+    implementation could render, so rewriting it would be worse than leaving it
+    alone — and it must never crash a hash.
+    """
+    cell = "1e99999999999999999999"
+    assert _canonicalize_cell(cell) == cell
+
+
+def test_negative_zero_has_no_sign() -> None:
+    """A value that rounds to zero collapses to the same cell as positive zero."""
+    assert _canonicalize_cell("-0") == "0.000000"
+    assert _canonicalize_cell("-0.0000001") == "0.000000"
+    assert _hash_cell("-0.0000001") == _hash_cell("0")
 
 
 # ── Published test vectors ────────────────────────────────────────

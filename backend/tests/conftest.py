@@ -4,7 +4,9 @@ Uses an in-memory SQLite database (aiosqlite) for isolated test DB state
 and mocks the Soroban RPC client to avoid external network calls.
 """
 
-from collections.abc import AsyncGenerator
+import os
+import uuid
+from collections.abc import AsyncGenerator, Iterator
 from typing import Any
 from unittest.mock import patch
 
@@ -13,6 +15,17 @@ import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
+# ``app.main`` builds the application at import time, and boot validation now
+# refuses an empty ``API_KEYS`` unless running without authentication was
+# explicitly opted into. A test run is development, so opt in the same way the
+# dev template does, before the first ``app.*`` import instantiates settings.
+# Guarded by an ``if`` so the assignment does not split the import block ruff
+# checks below.
+if os.environ.get("ALLOW_UNAUTHENTICATED_WRITES") is None:
+    os.environ["ALLOW_UNAUTHENTICATED_WRITES"] = "true"
+
+from app.config import settings
+from app.core.rate_limit import reset_rate_limits
 from app.db.base import Base
 from app.db.session import get_db
 from app.main import create_app
@@ -37,6 +50,35 @@ async def setup_database() -> AsyncGenerator[None, None]:
     yield
     async with test_engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
+
+
+@pytest.fixture(autouse=True)
+def disable_auth_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Run every test with authentication disabled unless it enables it itself.
+
+    Otherwise a developer's local ``.env`` that sets ``API_KEYS`` would make the
+    whole suite fail, and tests that are not about auth would have to carry a
+    key in every request. ``test_auth.py`` opts in per test.
+
+    Running without auth needs the ``ALLOW_UNAUTHENTICATED_WRITES`` opt-in, so
+    the same fixture turns it on; the tests that assert the gate itself turn it
+    back off.
+    """
+    monkeypatch.setattr(settings, "api_keys", "")
+    monkeypatch.setattr(settings, "allow_unauthenticated_writes", True)
+
+
+@pytest.fixture(autouse=True)
+def reset_rate_limit_state() -> Iterator[None]:
+    """Clear the in-process rate-limit window around every test.
+
+    The limiter counts per client IP, and every test hits the app from the same
+    test client, so without this the requests of earlier tests would count
+    against later ones.
+    """
+    reset_rate_limits()
+    yield
+    reset_rate_limits()
 
 
 async def override_get_db() -> AsyncGenerator[AsyncSession, None]:
@@ -99,6 +141,17 @@ SAMPLE_JSON = """[
 SAMPLE_JSON_WRAPPED = f'{{"data": {SAMPLE_JSON}}}'
 
 SAMPLE_HASH = _compute_hash(SAMPLE_CSV)
+
+
+def unique_sample_csv() -> str:
+    """SAMPLE_CSV plus one plausible row, so repeated uploads hash differently.
+
+    ``dataset_hash`` is unique, so a test that uploads more than once needs
+    distinct content. The row keeps the file's six columns rather than being a
+    comment: a comment line parses as a single column and breaks the analyzer.
+    """
+    temperature = 22.0 + (uuid.uuid4().int % 1000) / 1000
+    return f"{SAMPLE_CSV}S006,34.053700,-118.245200,7.21,451.00,8.55,{temperature:.3f}\n"
 
 
 # ── API helpers ───────────────────────────────────────────────────

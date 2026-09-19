@@ -1,9 +1,18 @@
 """Integration tests for the verification API endpoint."""
 
+import uuid
+
 import pytest
 from httpx import AsyncClient
 
-from tests.conftest import SAMPLE_CSV, SAMPLE_HASH, SAMPLE_JSON, analyze_and_anchor
+from app.models.dataset import Dataset
+from tests.conftest import (
+    SAMPLE_CSV,
+    SAMPLE_HASH,
+    SAMPLE_JSON,
+    TestSessionLocal,
+    analyze_and_anchor,
+)
 
 TEST_ADDRESS = "GABCDEF123456789012345678901234567890123"
 
@@ -89,6 +98,55 @@ async def test_verify_by_file(
 
 
 # ── POST /api/v1/verify — idempotent hash ─────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_verify_rejects_an_unsupported_upload(client: AsyncClient):
+    """Only formats the analyzer supports can be re-hashed, so anything else is a 400."""
+    response = await client.post(
+        "/api/v1/verify",
+        files={"file": ("notes.txt", "not a dataset", "text/plain")},
+    )
+
+    assert response.status_code == 400
+    assert "File must be one of" in response.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_verify_reports_a_malformed_proof_as_not_verified_locally(
+    client: AsyncClient,
+    mock_verify_on_chain_not_found,
+    mock_verify_inclusion_on_chain,
+):
+    """A stored proof the local verifier cannot evaluate is a `False`, not a 500.
+
+    The on-chain verdict still gets returned, so a caller can tell "the local
+    recomputation disagreed" apart from "the contract said no".
+    """
+    dataset_id = str(uuid.uuid4())
+    async with TestSessionLocal() as db:
+        db.add(
+            Dataset(
+                dataset_id=dataset_id,
+                dataset_hash="ab" * 32,
+                status="pending",
+                anomaly_score=0.0,
+                batch_id=str(uuid.uuid4()),
+                merkle_root="cd" * 32,
+                # A negative index is outside the tree, which the verifier rejects.
+                leaf_index=-1,
+                merkle_proof=[],
+            )
+        )
+        await db.commit()
+
+    response = await client.post("/api/v1/verify", params={"dataset_id": dataset_id})
+
+    assert response.status_code == 200
+    inclusion = response.json()["inclusion"]
+    assert inclusion is not None
+    assert inclusion["verified_locally"] is False
+    assert inclusion["verified_on_chain"] is True
 
 
 @pytest.mark.asyncio

@@ -8,6 +8,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gfortran \
     && rm -rf /var/lib/apt/lists/*
 
+# Run as a non-root user. The server needs no privileged operation, and if the
+# process is ever compromised this keeps it from reaching the host's files
+# through the container. The uid/gid are fixed so a mounted volume keeps a
+# stable owner across rebuilds.
+RUN groupadd --system --gid 10001 app \
+    && useradd --system --uid 10001 --gid app --create-home app
+
 WORKDIR /app
 
 RUN pip install --no-cache-dir uv
@@ -22,6 +29,12 @@ RUN uv sync --frozen --no-install-project
 COPY . .
 
 RUN uv sync --frozen
+
+# Hand the workdir (including the virtualenv built above) to the runtime user,
+# so `uv run`, the venv, and the anonymous /app/.venv volume compose mounts are
+# all writable by it.
+RUN chown -R app:app /app
+USER app
 
 EXPOSE 8000
 

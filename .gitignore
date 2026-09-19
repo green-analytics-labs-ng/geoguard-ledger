@@ -17,6 +17,12 @@ venv/
 .env
 *.log
 
+# Coverage reports (pytest-cov writes these next to the backend)
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+
 # Node / TypeScript
 node_modules/
 dist/

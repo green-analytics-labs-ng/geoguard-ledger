@@ -8,6 +8,8 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.rate_limit import rate_limit
+from app.core.security import verify_api_key
 from app.core.uploads import read_upload
 from app.db.session import get_db
 from app.models.dataset import Dataset
@@ -101,6 +103,8 @@ async def analyze_dataset(
     file: UploadFile = File(...),  # noqa: B008
     submitter_address: str | None = Form(None),  # noqa: B008
     db: AsyncSession = Depends(get_db),  # noqa: B008
+    _api_key: str = Depends(verify_api_key),  # noqa: B008
+    _rate_limit: None = Depends(rate_limit("datasets")),  # noqa: B008
 ) -> Any:
     """Canonicalize, hash, and analyze an uploaded dataset. No wallet required.
 
@@ -175,6 +179,7 @@ async def anchor_dataset(
     dataset_id: str,
     body: AnchorRequest,
     db: AsyncSession = Depends(get_db),  # noqa: B008
+    _api_key: str = Depends(verify_api_key),  # noqa: B008
 ) -> Any:
     """Build the unsigned anchoring transaction for an analyzed dataset.
 
@@ -237,6 +242,7 @@ async def submit_dataset(
     dataset_id: str,
     body: SubmitRequest,
     db: AsyncSession = Depends(get_db),  # noqa: B008
+    _api_key: str = Depends(verify_api_key),  # noqa: B008
 ) -> Any:
     """Submit a researcher-signed transaction to the Stellar network."""
     # Load the dataset from DB

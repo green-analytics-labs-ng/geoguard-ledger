@@ -32,6 +32,19 @@ class SubmitterAccountNotFoundError(GeoGuardError):
         super().__init__(message, status_code=400)
 
 
+class AnchorAlreadyExistsError(GeoGuardError):
+    """The contract already holds an anchor for this hash or Merkle root.
+
+    Anchoring never overwrites, so a second attempt is a conflict to report
+    rather than a transient failure to retry — the existing on-chain record is
+    the answer. Maps to 409, matching the duplicate-dataset refusal on the same
+    endpoint.
+    """
+
+    def __init__(self, message: str):
+        super().__init__(message, status_code=409)
+
+
 class HasherError(GeoGuardError):
     """CSV hashing / canonicalization error."""
 

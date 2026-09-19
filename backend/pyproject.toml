@@ -59,6 +59,16 @@ ignore_missing_imports = true
 asyncio_mode = "auto"
 testpaths = ["tests"]
 
+[tool.coverage.run]
+# SQLAlchemy's async session runs its synchronous work inside a greenlet, and
+# coverage.py stops attributing lines across those switches unless it is told
+# to trace greenlets. Without this, a route handler's body is reported as
+# missing from its first `await db...` onward even though the tests covered it
+# end to end: batches.py measured 53% against a true 99%, and datasets.py 70%
+# against 100%. That misreport also hid that overall coverage was 89%, not the
+# 79.6% it looked like.
+concurrency = ["greenlet"]
+
 [dependency-groups]
 dev = [
     "aiosqlite>=0.22.1",

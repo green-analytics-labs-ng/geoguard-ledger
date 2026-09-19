@@ -4,11 +4,13 @@ Uses the in-memory SQLite database and mocked Soroban RPC from ``conftest``.
 """
 
 import uuid
+from unittest.mock import patch
 
 import pytest
 from httpx import AsyncClient
 
 from app.config import settings
+from app.core.exceptions import AnchorAlreadyExistsError
 from app.models.dataset import Dataset
 from app.services import merkle
 from tests.conftest import MOCK_LEDGER, MOCK_TX_HASH, TestSessionLocal, anchor
@@ -238,6 +240,32 @@ async def test_create_batch_rejects_already_batched_dataset(
         json={"submitter_address": TEST_ADDRESS, "dataset_ids": [dataset["dataset_id"]]},
     )
     assert resp.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_create_batch_reports_an_already_anchored_root(client: AsyncClient):
+    """A root the ledger already holds is a 409, and no half-written batch is left.
+
+    The batch is persisted only after the unsigned transaction is built, so a
+    duplicate root has to fail as a conflict the caller can act on while leaving
+    nothing behind for a later listing to pick up.
+    """
+    dataset = await _create_dataset(client, "existing-root")
+
+    with patch(
+        "app.api.v1.batches.build_anchor_root_transaction",
+        side_effect=AnchorAlreadyExistsError("This Merkle root is already anchored"),
+    ):
+        resp = await client.post(
+            "/api/v1/batches",
+            json={"submitter_address": TEST_ADDRESS, "dataset_ids": [dataset["dataset_id"]]},
+        )
+
+    assert resp.status_code == 409
+    assert "already anchored" in resp.json()["detail"]
+
+    listed = await client.get("/api/v1/batches")
+    assert listed.json()["total"] == 0
 
 
 @pytest.mark.asyncio

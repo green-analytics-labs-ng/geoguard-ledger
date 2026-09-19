@@ -1,10 +1,32 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useWallet } from "../context/WalletContext";
 import WalletConnector from "../components/WalletConnector";
+import { clearApiKey, hasApiKey, setApiKey } from "../api/apiKey";
 
 export default function SettingsPage() {
   const navigate = useNavigate();
   const { connected, publicKey, network, error, disconnect } = useWallet();
+
+  // The input is write-only in the UI: the stored key is never read back into
+  // the field, only its presence is reflected.
+  const [apiKeyInput, setApiKeyInput] = useState("");
+  const [apiKeyConfigured, setApiKeyConfigured] = useState(hasApiKey);
+  const [saved, setSaved] = useState(false);
+
+  function handleSaveApiKey() {
+    setApiKey(apiKeyInput);
+    setApiKeyInput("");
+    setApiKeyConfigured(hasApiKey());
+    setSaved(true);
+  }
+
+  function handleClearApiKey() {
+    clearApiKey();
+    setApiKeyInput("");
+    setApiKeyConfigured(false);
+    setSaved(false);
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -41,6 +63,51 @@ export default function SettingsPage() {
           ) : (
             <WalletConnector />
           )}
+        </div>
+
+        {/* API Access Section */}
+        <div className="card mb-6">
+          <h2 className="text-lg font-semibold mb-4">API Access</h2>
+          <div className="space-y-3">
+            <p className="text-sm text-gray-600">
+              Uploading and anchoring require an API key when the backend has{" "}
+              <code className="text-xs bg-gray-100 px-1 py-0.5 rounded">API_KEYS</code> configured.
+              The key is stored in this browser and sent as the{" "}
+              <code className="text-xs bg-gray-100 px-1 py-0.5 rounded">X-API-Key</code> header on
+              upload and anchoring requests. Verification stays public and never carries it.
+            </p>
+            <div className="flex items-end gap-2">
+              <div className="flex-1">
+                <label htmlFor="api-key" className="block text-xs text-gray-500 mb-1">
+                  API Key
+                </label>
+                <input
+                  id="api-key"
+                  type="password"
+                  value={apiKeyInput}
+                  onChange={(event) => {
+                    setApiKeyInput(event.target.value);
+                    setSaved(false);
+                  }}
+                  placeholder={apiKeyConfigured ? "•••••••• (saved)" : "Paste your API key"}
+                  autoComplete="off"
+                  className="input-field font-mono text-sm"
+                />
+              </div>
+              <button onClick={handleSaveApiKey} className="btn-primary">
+                Save
+              </button>
+              {apiKeyConfigured && (
+                <button onClick={handleClearApiKey} className="btn-secondary">
+                  Clear
+                </button>
+              )}
+            </div>
+            {saved && <p className="text-sm text-green-700">API key saved.</p>}
+            {apiKeyConfigured && !saved && (
+              <p className="text-sm text-gray-500">A key is configured for this browser.</p>
+            )}
+          </div>
         </div>
 
         {/* Network Section */}

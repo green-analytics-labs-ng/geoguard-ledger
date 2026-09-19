@@ -7,6 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import MerkleError
+from app.core.rate_limit import rate_limit
 from app.core.uploads import read_upload
 from app.db.session import get_db
 from app.models.dataset import Dataset
@@ -61,6 +62,7 @@ async def verify_dataset(
     dataset_id: str | None = Query(None, description="Dataset UUID to verify"),
     file: UploadFile | None = None,
     db: AsyncSession = Depends(get_db),  # noqa: B008
+    _rate_limit: None = Depends(rate_limit("verify")),  # noqa: B008
 ) -> dict[str, Any]:
     """Verify a dataset against its on-chain proof.
 
