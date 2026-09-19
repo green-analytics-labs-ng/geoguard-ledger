@@ -202,8 +202,20 @@ jobs:
       - name: Format check
         run: npm run format:check
 
-      - name: Run tests
-        run: npm run test -- --run
+      # Coverage is what runs here, not a plain test pass: the text reporter
+      # prints the summary table into the job log, and the json-summary file is
+      # what `coverage-report` reads back out of the uploaded artifact. Both
+      # reporters are configured in vite.config.ts.
+      - name: Run tests with coverage
+        run: npm run test:coverage
+
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: frontend-coverage
+          path: frontend/coverage/coverage-summary.json
+          if-no-files-found: ignore
 
       # `npm run build` runs `tsc -b`, which is the only thing that type-checks
       # vite.config.ts and the tsconfig.node.json project — the `typecheck`
