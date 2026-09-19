@@ -31,3 +31,11 @@ def test_integer_and_decimal_forms_are_distinct() -> None:
 def test_scientific_and_decimal_notation_are_distinct() -> None:
     """1e-3 and 0.001 currently hash differently: only decimals are converted."""
     assert _hash_cell("1e-3") != _hash_cell("0.001")
+
+
+def test_composed_and_decomposed_unicode_are_distinct() -> None:
+    """NFC and NFD forms of the same text currently hash differently."""
+    nfc = "\u00e9"  # é as a single code point
+    nfd = "e\u0301"  # same glyph, e followed by a combining acute accent
+    assert nfc != nfd
+    assert _hash_cell(nfc) != _hash_cell(nfd)
