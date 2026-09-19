@@ -10,7 +10,7 @@ import asyncio
 import secrets
 import uuid
 from datetime import UTC, datetime, timedelta
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from stellar_sdk import Account, Keypair, StrKey, TransactionBuilder, TransactionEnvelope, scval
@@ -682,6 +682,34 @@ def _arm_job(monkeypatch) -> None:
     monkeypatch.setattr(settings, "ttl_renewal_enabled", True)
     monkeypatch.setattr(settings, "ttl_renewal_signer_secret", "S" + "A" * 55)
     monkeypatch.setattr(renewal_job, "AsyncSessionLocal", TestSessionLocal)
+
+
+def test_main_defaults_to_a_real_pass(monkeypatch):
+    """The console script's entry point forwards its parsed flags into `run`."""
+    run = AsyncMock(return_value=renewal_job.EXIT_OK)
+    monkeypatch.setattr(renewal_job, "run", run)
+
+    assert renewal_job.main([]) == renewal_job.EXIT_OK
+
+    run.assert_awaited_once_with(dry_run=False, limit=None)
+
+
+def test_main_forwards_dry_run_and_limit(monkeypatch):
+    """`--dry-run` and `--limit` reach the pass unchanged."""
+    run = AsyncMock(return_value=renewal_job.EXIT_OK)
+    monkeypatch.setattr(renewal_job, "run", run)
+
+    assert renewal_job.main(["--dry-run", "--limit", "5"]) == renewal_job.EXIT_OK
+
+    run.assert_awaited_once_with(dry_run=True, limit=5)
+
+
+def test_main_reports_a_misconfigured_job(monkeypatch):
+    """A scheduler alerting on exit code 2 needs `main` itself to propagate it."""
+    monkeypatch.setattr(settings, "ttl_renewal_enabled", False)
+    monkeypatch.setattr(settings, "ttl_renewal_signer_secret", "")
+
+    assert renewal_job.main([]) == renewal_job.EXIT_NOT_CONFIGURED
 
 
 def test_job_refuses_to_run_while_switched_off(monkeypatch):

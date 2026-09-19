@@ -119,5 +119,5 @@ def main(argv: list[str] | None = None) -> int:
     return asyncio.run(run(dry_run=args.dry_run, limit=args.limit))
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover - exercised by the console script, not pytest
     sys.exit(main())
