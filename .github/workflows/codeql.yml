@@ -1,0 +1,58 @@
+name: CodeQL
+
+# Static analysis over the two languages a user's browser or request can reach.
+# The contract is deliberately absent: it is Rust, targeted at wasm32, and its
+# `cargo clippy -- -D warnings` gate in ci.yml is the check that covers it.
+#
+# CodeQL's `security-and-quality` queries come with `security-extended`, so the
+# default suite is kept and the extended one is added on top: the extra queries
+# are worth the slower run on a repo this size.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # A weekly run catches a query that was added after the last push, and
+    # re-scans code that has not changed but a query now understands better.
+    - cron: "27 4 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    permissions:
+      # Needed to upload the results to the code scanning dashboard.
+      security-events: write
+      # Only required for workflows in private repositories.
+      actions: read
+      contents: read
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Neither language needs compiling, so there is nothing for CodeQL to
+          # build and no reason to install the project's own toolchains.
+          - language: python
+            build-mode: none
+          - language: javascript-typescript
+            build-mode: none
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+          queries: security-extended
+
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{ matrix.language }}"
