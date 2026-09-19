@@ -26,11 +26,31 @@ function needsApiKey(method: string, url: string): boolean {
   );
 }
 
+/**
+ * Deadline for the calls that answer from a row or two of database.
+ *
+ * Without one, a request that never answers hangs the UI on a spinner forever:
+ * axios waits indefinitely by default, so a dropped connection or a proxy that
+ * ate the response looks identical to a slow server.
+ */
+export const REQUEST_TIMEOUT_MS = 30_000;
+
+/**
+ * Deadline for the two endpoints that take a file.
+ *
+ * They are a different shape of request. The backend canonicalizes, hashes and
+ * scores up to `MAX_UPLOAD_SIZE_BYTES` (50 MB) before it answers, which over a
+ * slow connection is minutes rather than seconds — the default would cut the
+ * analysis off mid-flight and report it as a network failure.
+ */
+export const UPLOAD_TIMEOUT_MS = 120_000;
+
 const client = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || "/api/v1",
   headers: {
     "Content-Type": "application/json",
   },
+  timeout: REQUEST_TIMEOUT_MS,
 });
 
 client.interceptors.request.use((config) => {

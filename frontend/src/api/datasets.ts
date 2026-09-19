@@ -1,4 +1,4 @@
-import client from "./client";
+import client, { UPLOAD_TIMEOUT_MS } from "./client";
 import type { DatasetAnchorResponse, DatasetCreateResponse, DatasetResponse } from "../types";
 
 /**
@@ -13,6 +13,9 @@ export async function uploadCsv(file: File): Promise<DatasetCreateResponse> {
   formData.append("file", file);
   const { data } = await client.post("/datasets", formData, {
     headers: { "Content-Type": "multipart/form-data" },
+    // Analyzing an upload is the slowest thing this API does, so it gets the
+    // longer deadline rather than the client's default.
+    timeout: UPLOAD_TIMEOUT_MS,
   });
   return data;
 }
