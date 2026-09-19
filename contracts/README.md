@@ -106,6 +106,20 @@ stellar contract invoke \
   --model_version isoforest_v1
 ```
 
+### What an anchor proves
+
+Anchoring is **first write wins**: a hash or Merkle root already on-chain cannot
+be anchored again — the call fails with `HashAlreadyAnchored` (3) or
+`RootAlreadyAnchored` (6) instead of overwriting — so the ledger keeps the time
+of the *first* anchor and nothing later can rewrite it.
+
+The consequence is worth stating plainly: an anchor proves the data existed at
+or before a recorded time, **not who authored it**. Two parties holding the same
+file both verify against the same record, and only the first one's transaction
+is on it; the stored submitter address says who *anchored*, which is a different
+claim from authorship. If provenance matters, that has to be established off
+chain — the anchor only fixes the file's existence in time.
+
 ### Verify Integrity
 
 ```bash
