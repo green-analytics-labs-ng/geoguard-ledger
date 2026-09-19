@@ -47,6 +47,19 @@ async def test_create_dataset_success(client: AsyncClient):
 
 
 @pytest.mark.asyncio
+async def test_analyze_reports_the_canonicalization_version(client: AsyncClient):
+    """The hash comes with the rule set that produced it, on both responses."""
+    created = await analyze(client)
+
+    assert created["canonicalization_version"] == "1"
+
+    response = await client.get(f"/api/v1/datasets/{created['dataset_id']}")
+
+    assert response.status_code == 200
+    assert response.json()["canonicalization_version"] == "1"
+
+
+@pytest.mark.asyncio
 async def test_analyze_persists_dataset_without_a_submitter(client: AsyncClient):
     """An analyzed dataset is stored, but with nobody attached to it yet."""
     created = await analyze(client)

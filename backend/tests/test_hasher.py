@@ -5,12 +5,17 @@ relies on when they re-hash a dataset and expect to reproduce the anchored
 fingerprint. The normative rules live in SPECIFICATION.md.
 """
 
-from app.services.hasher import compute_hash
+from app.services.hasher import CANONICALIZATION_VERSION, compute_hash
 
 
 def _hash_cell(cell: str) -> str:
     """Hash a one-column CSV containing a single cell."""
     return compute_hash(f"value\n{cell}\n")
+
+
+def test_canonicalization_version_is_published() -> None:
+    """The rule set behind every hash carries a version a verifier can read."""
+    assert CANONICALIZATION_VERSION == "1"
 
 
 def test_numbers_round_to_six_decimal_places() -> None:

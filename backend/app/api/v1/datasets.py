@@ -12,6 +12,7 @@ from app.core.uploads import read_upload
 from app.db.session import get_db
 from app.models.dataset import Dataset
 from app.services.anomaly import run_anomaly_detection
+from app.services.hasher import CANONICALIZATION_VERSION
 from app.services.ingest import process_upload
 from app.services.parser import describe_supported_formats, is_supported
 from app.services.soroban import build_anchor_transaction, submit_transaction
@@ -38,6 +39,7 @@ class DatasetAnalyzeResponse(BaseModel):
 
     dataset_id: str
     dataset_hash: str
+    canonicalization_version: str
     anomaly_report: AnomalyReport
     created_at: str
 
@@ -71,6 +73,7 @@ class SubmitResponse(BaseModel):
 class DatasetResponse(BaseModel):
     dataset_id: str
     dataset_hash: str
+    canonicalization_version: str
     status: str
     anomaly_score: float
     anomaly_report: AnomalyReport | None = None
@@ -153,6 +156,7 @@ async def analyze_dataset(
     return DatasetAnalyzeResponse(
         dataset_id=dataset.dataset_id,
         dataset_hash=dataset.dataset_hash,
+        canonicalization_version=CANONICALIZATION_VERSION,
         anomaly_report=AnomalyReport(
             score=anomaly_result["score"],
             flags=anomaly_result["flags"],
@@ -318,6 +322,7 @@ def _dataset_to_response(dataset: Dataset) -> DatasetResponse:
     return DatasetResponse(
         dataset_id=dataset.dataset_id,
         dataset_hash=dataset.dataset_hash,
+        canonicalization_version=CANONICALIZATION_VERSION,
         status=dataset.status,
         anomaly_score=dataset.anomaly_score,
         anomaly_report=anomaly_report,

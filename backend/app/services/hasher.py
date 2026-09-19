@@ -13,6 +13,12 @@ import hashlib
 import io
 import re
 
+# Version of the canonicalization rules implemented here. Any change to a rule
+# re-hashes every dataset, and a hash anchored under an older rule set can no
+# longer be reproduced by this code, so the version is advertised in API
+# responses: a verifier uses it to know which rule set a stored hash came from.
+CANONICALIZATION_VERSION = "1"
+
 
 def compute_hash(csv_text: str) -> str:
     """Compute SHA-256 hash over canonicalized CSV content."""
