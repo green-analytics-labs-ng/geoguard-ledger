@@ -425,9 +425,20 @@ Development: http://localhost:8000/api/v1
 
 ### 5.2 Endpoints
 
+Each endpoint notes whether it requires the `X-API-Key` header and whether it is
+rate limited. `Auth: API key required` means the header must match a key in
+`API_KEYS` (unless `API_KEYS` is empty, which disables authentication in
+development). `Rate limit` marks the endpoints counted per client IP over a
+sliding window. The full model is in
+[§5.3 Authentication & Authorization](#53-authentication--authorization).
+
 #### `POST /api/v1/datasets`
 Analyze a new geochemical dataset: canonicalize, hash, and score it. No wallet
 is required, and no transaction is returned — anchoring is a separate step.
+
+**Auth:** API key required. **Rate limit:** applies — this is the upload/analyze
+endpoint, so it is the most expensive call in the API (`429` with `Retry-After`
+when exceeded).
 
 **Request:**
 ```
@@ -481,6 +492,8 @@ Bind the researcher's Stellar address to an analyzed dataset and build the
 unsigned anchoring transaction. This is the instance of the flow that needs a
 wallet, because it produces the transaction that must be signed.
 
+**Auth:** API key required. **Rate limit:** not applied.
+
 **Request:**
 ```json
 {
@@ -509,6 +522,8 @@ wallet, because it produces the transaction that must be signed.
 #### `POST /api/v1/datasets/{dataset_id}/submit`
 Submit a researcher-signed transaction to the Stellar network.
 
+**Auth:** API key required. **Rate limit:** not applied.
+
 **Request:**
 ```json
 {
@@ -531,6 +546,8 @@ Submit a researcher-signed transaction to the Stellar network.
 #### `GET /api/v1/datasets`
 List all datasets for a researcher.
 
+**Auth:** public. **Rate limit:** not applied.
+
 **Response (200 OK):**
 ```json
 {
@@ -550,8 +567,15 @@ List all datasets for a researcher.
 #### `GET /api/v1/datasets/{dataset_id}`
 Get full details for a single dataset.
 
+**Auth:** public. **Rate limit:** not applied.
+
 #### `POST /api/v1/verify`
 Verify a dataset against its on-chain proof.
+
+**Auth:** public — permissionless verification is the point. **Rate limit:**
+applies; the file mode re-hashes an upload and every mode queries the Soroban
+RPC, so calls are counted per client IP (`429` with `Retry-After` when
+exceeded).
 
 **Request:**
 ```json
@@ -599,6 +623,8 @@ Merkle root: the root, the leaf position, and the bottom-up sibling path.
 #### `POST /api/v1/batches`
 Build a Merkle root over a set of datasets and return an unsigned root-anchoring transaction.
 
+**Auth:** API key required. **Rate limit:** not applied.
+
 **Request:**
 ```json
 {
@@ -635,11 +661,17 @@ Build a Merkle root over a set of datasets and return an unsigned root-anchoring
 #### `POST /api/v1/batches/{batch_id}/submit`
 Submit the researcher-signed root transaction. On success the batch and every dataset it covers are marked `anchored` and share the one transaction hash.
 
+**Auth:** API key required. **Rate limit:** not applied.
+
 #### `GET /api/v1/batches`
 List batches, most recent first.
 
+**Auth:** public. **Rate limit:** not applied.
+
 #### `GET /api/v1/batches/{batch_id}`
 Fetch a single batch by ID.
+
+**Auth:** public. **Rate limit:** not applied.
 
 #### `GET /api/v1/health`
 Health check endpoint. Probes the Soroban RPC endpoint on every call and
@@ -648,6 +680,9 @@ the RPC is reachable and healthy, `{"status": "ok", "soroban_rpc":
 "unreachable"}` otherwise. `status` describes the API itself, so it stays
 `"ok"` while a dependency is down. The probe timeout is configurable via
 `SOROBAN_RPC_HEALTH_TIMEOUT_SECONDS`.
+
+**Auth:** public — a probe that needs credentials is not a useful probe.
+**Rate limit:** not applied.
 
 #### `GET /api/v1/maintenance/ttl-status`
 Reports how much life the anchored entries have left, nested under `roots` and
@@ -660,11 +695,40 @@ renewal. `records` covers standalone anchors only; a batched dataset is covered
 by its batch root, so it is counted there instead. Kept out of `/health` so
 liveness probes do not pay for a database aggregate.
 
+**Auth:** public. **Rate limit:** not applied.
+
 ### 5.3 Authentication & Authorization
 
-**Phase 1 (Current):** The API is open. `researcher_id` is derived from the submitter's Stellar public key embedded in the signed transaction XDR. No additional API authentication is required during the pilot — trust is established cryptographically via the wallet signature on the transaction itself.
+**Current:** Write endpoints require an `X-API-Key` header whose value matches one of
+the keys configured in the comma-separated `API_KEYS` environment variable.
+Gated endpoints are those that upload or anchor: `POST /datasets`,
+`POST /datasets/{id}/anchor`, `POST /datasets/{id}/submit`, `POST /batches`, and
+`POST /batches/{id}/submit`. Comparison is constant-time, and every configured
+key is compared even after a match, so response timing reveals neither a wrong
+key nor which key (or position) succeeded; multiple keys may be listed at once so
+one can be rotated without downtime. **When `API_KEYS` is empty, authentication
+is disabled** — the development default, so a local checkout runs with no setup,
+while deployments are expected to set at least one key.
 
-**Phase 2+ (Planned):** API key authentication via `X-API-Key` header, validated against a table of registered researchers. This prevents anonymous abuse of the CSV processing and AI inference endpoints without requiring a wallet signature for read-only operations.
+**Stays public:** read endpoints (`GET /datasets`, `GET /datasets/{id}`,
+`GET /batches`, `GET /batches/{id}`), `POST /verify`, and `GET /health`.
+Permissionless verification is a feature — any third party must be able to check
+a proof without a shared secret — and a health probe that needs credentials is
+not a useful probe. `researcher_id` for an anchor is still derived from the
+submitter's Stellar public key embedded in the signed transaction XDR, so the
+API key gates *access* while the wallet signature proves *who anchored*.
+
+**Abuse limits:** the upload and verification endpoints parse and hash a file
+(verification also queries the Soroban RPC), so they are additionally rate
+limited per client IP over a sliding window. `RATE_LIMIT_REQUESTS` (default 30)
+and `RATE_LIMIT_WINDOW_SECONDS` (default 60) bound each endpoint separately, and
+exceeding one returns `429 Too Many Requests` with a `Retry-After` header. The
+counters are in-process, which bounds a single abusive client; a shared store
+(for example Redis) is the natural replacement if the API runs several replicas.
+
+**Phase 3+ (Planned):** validate keys against a table of registered researchers
+rather than a static list, so keys can be issued, scoped, and revoked per
+researcher instead of by redeploying.
 
 **Design Principle:** The backend never holds or requests Stellar secret keys. All transaction signing happens client-side via Freighter wallet. The backend only handles unsigned XDR construction and signed XDR submission — the private key never leaves the browser extension.
 
