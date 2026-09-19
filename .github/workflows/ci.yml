@@ -153,6 +153,17 @@ jobs:
       - name: Run tests
         run: uv run pytest --cov=app --cov-report=term-missing --cov-report=xml --cov-fail-under=80
 
+      # Uploaded even when the suite failed, so a drop is still comparable with
+      # the previous run. `coverage-report` turns this into the pull request
+      # comment; nothing depends on it being present.
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: backend-coverage
+          path: backend/coverage.xml
+          if-no-files-found: ignore
+
   frontend-lint-test:
     name: Frontend - Lint & Test
     runs-on: ubuntu-latest
@@ -197,6 +208,63 @@ jobs:
       # broken build config from reaching main unnoticed.
       - name: Production build
         run: npm run build
+
+  coverage-report:
+    name: Coverage - Comment the delta
+    # Pull requests only: on a push there is no conversation to comment in, and
+    # the sticky comment would have no thread to land in. Both suites have to
+    # finish first because their artifacts are the input.
+    if: github.event_name == 'pull_request'
+    needs: [backend-lint-test, frontend-lint-test]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # `gh run download` reads the base branch's artifacts, and the comment
+      # itself needs write access to the pull request.
+      actions: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Download this run's coverage
+        # A job that failed before it wrote a report must not turn a coverage
+        # comment into a second failure, so a missing artifact is tolerated.
+        continue-on-error: true
+        uses: actions/download-artifact@v7
+        with:
+          pattern: "*-coverage"
+          path: head-coverage
+
+      # The base branch is the reference point for the delta. Its most recent
+      # run on that branch is what a reviewer would call "the number before this
+      # change", which the run for this pull request's merge base is not.
+      - name: Download the base branch's coverage
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          for artifact in backend-coverage frontend-coverage; do
+            gh run download \
+              --repo "$GITHUB_REPOSITORY" \
+              --branch "${{ github.base_ref }}" \
+              --name "$artifact" \
+              --dir "base-coverage/$artifact" || true
+          done
+
+      - name: Write the coverage summary
+        run: |
+          python3 scripts/coverage_delta.py \
+            --head head-coverage \
+            --base base-coverage \
+            --base-label "${{ github.base_ref }}" \
+            --out coverage-comment.md | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Comment on the pull request
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: coverage
+          path: coverage-comment.md
 
   brand-assets:
     name: Brand - Assets Match Generator
@@ -281,7 +349,7 @@ jobs:
 
   all-pass:
     name: All Checks Pass
-    needs: [contract-lint-test, migrations, backend-lint-test, frontend-lint-test, brand-assets, schema-boot, commit-attribution]
+    needs: [contract-lint-test, migrations, backend-lint-test, frontend-lint-test, coverage-report, brand-assets, schema-boot, commit-attribution]
     runs-on: ubuntu-latest
     steps:
       - run: echo "✅ All checks passed"
