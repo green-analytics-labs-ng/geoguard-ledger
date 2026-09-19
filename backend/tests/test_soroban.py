@@ -8,11 +8,13 @@ boundary, so the real ``stellar-sdk`` envelope handling runs without a network.
 
 import pytest
 from stellar_sdk import Account, Asset, Keypair, StrKey, TransactionBuilder, TransactionEnvelope
+from stellar_sdk.exceptions import AccountNotFoundException
 from stellar_sdk.soroban_server import GetTransactionStatus
 
 from app.config import settings
-from app.core.exceptions import AnchorAlreadyExistsError
+from app.core.exceptions import AnchorAlreadyExistsError, SubmitterAccountNotFoundError
 from app.services import soroban
+from app.services.soroban import FRIENDBOT_URL
 from tests.conftest import MOCK_LEDGER, MOCK_TX_HASH
 
 # A syntactically valid contract id, which is all the SDK needs to build the
@@ -38,14 +40,26 @@ class _Simulation:
 class _BuildServer:
     """Answers account loading and simulation for the build path."""
 
-    def __init__(self, error: str | None = None) -> None:
+    def __init__(
+        self,
+        error: str | None = None,
+        *,
+        load_error: Exception | None = None,
+        simulate_error: Exception | None = None,
+    ) -> None:
         self.error = error
+        self.load_error = load_error
+        self.simulate_error = simulate_error
         self.prepared = False
 
     def load_account(self, address: str) -> Account:
+        if self.load_error is not None:
+            raise self.load_error
         return Account(address, 1)
 
     def simulate_transaction(self, envelope: object) -> _Simulation:
+        if self.simulate_error is not None:
+            raise self.simulate_error
         return _Simulation(self.error)
 
     def prepare_transaction(self, envelope: object, simulation: object) -> object:
@@ -173,6 +187,36 @@ async def test_build_refuses_without_a_contract_id(monkeypatch):
 
     with pytest.raises(ValueError, match="CONTRACT_ID"):
         await soroban.build_anchor_root_transaction(SUBMITTER, MERKLE_ROOT, 1)
+
+
+@pytest.mark.asyncio
+async def test_unfunded_submitter_points_at_the_faucet(monkeypatch):
+    """A wallet with no on-chain account must be told how to fund it, not get a 500.
+
+    The SDK raises ``AccountNotFoundException`` while loading the sequence
+    account; that has to reach the user as a fixable condition.
+    """
+    monkeypatch.setattr(settings, "contract_id", CONTRACT_ID)
+    monkeypatch.setattr(settings, "soroban_network_passphrase", soroban.TESTNET_NETWORK_PASSPHRASE)
+    server = _BuildServer(load_error=AccountNotFoundException(SUBMITTER))
+    monkeypatch.setattr(soroban, "_get_server", lambda: server)
+
+    with pytest.raises(SubmitterAccountNotFoundError) as caught:
+        await soroban.build_anchor_transaction(SUBMITTER, DATASET_HASH, ANOMALY_REPORT)
+
+    assert SUBMITTER in caught.value.message
+    assert FRIENDBOT_URL in caught.value.message
+
+
+@pytest.mark.asyncio
+async def test_simulation_transport_failure_becomes_a_runtime_error(monkeypatch):
+    """A dropped RPC connection while simulating is a failed build, not a revert."""
+    monkeypatch.setattr(settings, "contract_id", CONTRACT_ID)
+    server = _BuildServer(simulate_error=RuntimeError("RPC connection reset"))
+    monkeypatch.setattr(soroban, "_get_server", lambda: server)
+
+    with pytest.raises(RuntimeError, match="Transaction simulation failed"):
+        await soroban.build_anchor_root_transaction(SUBMITTER, MERKLE_ROOT, 2)
 
 
 # ── Submitting a signed transaction ───────────────────────────────

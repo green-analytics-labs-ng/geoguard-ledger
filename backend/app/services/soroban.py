@@ -544,11 +544,13 @@ async def verify_on_chain(dataset_hash: str) -> dict[str, Any] | None:
     # BytesN<32> fields come back as raw bytes; convert to hex strings for JSON safety
     if isinstance(record.get("dataset_hash"), bytes):  # type: ignore[union-attr]
         record["dataset_hash"] = record["dataset_hash"].hex()  # type: ignore[call-overload,index,union-attr]
-    # The submitter field from the contract is an Address object; convert to string.
-    # to_string() gives the clean G... address, str() falls back to __repr__.
+    # The submitter field from the contract is an Address object; convert it to
+    # the clean G... StrKey. This SDK's Address exposes that as `.address`, so
+    # `str()` — which would rewrite it as an `<Address [type=…, address=…]>`
+    # repr — is only a last resort for some unexpected scalar.
     submitter = record.get("submitter")  # type: ignore[union-attr]
-    if hasattr(submitter, "to_string"):
-        record["submitter"] = submitter.to_string()  # type: ignore[call-overload,index,union-attr]
+    if isinstance(submitter, StellarAddress):
+        record["submitter"] = submitter.address  # type: ignore[call-overload,index]
     elif isinstance(submitter, bytes):
         record["submitter"] = submitter.hex()  # type: ignore[call-overload,index]
     elif not isinstance(submitter, str):
