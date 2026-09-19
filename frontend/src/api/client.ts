@@ -1,6 +1,7 @@
 import axios from "axios";
 
 import { getApiKey } from "./apiKey";
+import { apiErrorMessage } from "../utils/errors";
 
 // Methods that change state on the server.
 const WRITE_METHODS = new Set(["post", "put", "patch", "delete"]);
@@ -61,5 +62,35 @@ client.interceptors.request.use((config) => {
   }
   return config;
 });
+
+/** The codes axios reports when a request ran out of time. */
+const TIMEOUT_CODES = new Set(["ECONNABORTED", "ETIMEDOUT"]);
+
+const TIMEOUT_MESSAGE =
+  "The request timed out before the server answered. Check your connection and try again.";
+
+client.interceptors.response.use(
+  (response) => response,
+  (error: unknown) => {
+    // A timeout never reached a server, so there is no `detail` to prefer;
+    // axios's own "timeout of 30000ms exceeded" is written for a developer.
+    const timedOut =
+      axios.isAxiosError(error) && error.code !== undefined && TIMEOUT_CODES.has(error.code);
+
+    const message = timedOut
+      ? TIMEOUT_MESSAGE
+      : apiErrorMessage(error, "The request failed. Please try again.");
+
+    // Rewrite the message on the original error rather than replacing it: the
+    // components still read `response.data.detail` and `config` off the same
+    // object, while callers that only look at `message` now get the backend's
+    // actionable half instead of "Request failed with status code 400".
+    if (error instanceof Error) {
+      error.message = message;
+      return Promise.reject(error);
+    }
+    return Promise.reject(new Error(message));
+  },
+);
 
 export default client;
