@@ -140,13 +140,22 @@ Step 3: ANALYZE (FastAPI) — no wallet required
     a. CSV is transmitted to POST /api/v1/datasets as multipart/form-data.
     b. Backend validates CSV structure (rows > 0, required columns present).
     c. Backend computes SHA-256 hash over the canonicalized CSV content.
-       Canonicalization rules (critical for deterministic hashing):
+       Canonicalization v1 (critical for deterministic hashing). The rule set is
+       versioned as CANONICALIZATION_VERSION and advertised in API responses,
+       because any change to it re-hashes every dataset:
        - RFC 4180-compliant CSV parsing with UTF-8 encoding (no BOM).
        - Line endings normalized to \n.
-       - Numeric columns truncated to 6 decimal places.
-       - Trailing whitespace stripped from all cells.
-       - Rows sorted by their index in the original file.
-       - Exactly these rules are published so third parties can reproduce hashes.
+       - Every cell normalized to Unicode NFC.
+       - Leading and trailing whitespace stripped from every cell.
+       - Numeric cells — integers, decimals, and scientific notation alike —
+         rendered as one canonical decimal form, rounded half-even to 6 decimal
+         places (7.1234567 -> 7.123457, 1e-3 -> 0.001000, 5 -> 5.000000). A
+         cell with leading zeros (e.g. 0001) is an identifier, not a number,
+         and is left verbatim.
+       - Row order preserved exactly as it appears in the file; rows are never
+         sorted or reordered.
+       - Exactly these rules are published, together with test vectors, so
+         third parties can reproduce hashes (see docs/canonicalization.md).
     d. Backend invokes AI anomaly detection model:
        - Input: numeric columns from the CSV.
        - Output: anomaly_score (0.0–1.0), anomaly_flags (list of row indices),
