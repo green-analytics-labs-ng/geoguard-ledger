@@ -129,8 +129,11 @@ jobs:
       - name: Type check with mypy
         run: uv run mypy app/
 
+      # `term-missing` prints the uncovered lines next to the summary so a drop is
+      # diagnosable from the log, and `--cov-fail-under` turns the number into a
+      # gate: coverage can climb but not slide back unnoticed.
       - name: Run tests
-        run: uv run pytest --cov=app --cov-report=xml
+        run: uv run pytest --cov=app --cov-report=term-missing --cov-report=xml --cov-fail-under=80
 
   frontend-lint-test:
     name: Frontend - Lint & Test
