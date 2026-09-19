@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
+import { ROUTER_FUTURE_FLAGS } from "../../src/routes";
 
 const wallet = vi.hoisted(() => ({ value: {} as Record<string, unknown> }));
 
@@ -34,7 +35,7 @@ const MATCH = {
 
 function renderPage(entry = "/verify") {
   return render(
-    <MemoryRouter initialEntries={[entry]}>
+    <MemoryRouter future={ROUTER_FUTURE_FLAGS} initialEntries={[entry]}>
       <VerifyPage />
     </MemoryRouter>,
   );

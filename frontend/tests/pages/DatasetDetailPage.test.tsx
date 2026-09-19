@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
+import { ROUTER_FUTURE_FLAGS } from "../../src/routes";
 
 const wallet = vi.hoisted(() => ({ value: {} as Record<string, unknown> }));
 
@@ -41,7 +42,7 @@ function makeDataset(
 
 function renderPage() {
   return render(
-    <MemoryRouter initialEntries={["/datasets/ds-1"]}>
+    <MemoryRouter future={ROUTER_FUTURE_FLAGS} initialEntries={["/datasets/ds-1"]}>
       <Routes>
         <Route path="/datasets/:id" element={<DatasetDetailPage />} />
       </Routes>

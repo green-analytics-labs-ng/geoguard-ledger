@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
+import { ROUTER_FUTURE_FLAGS } from "../../src/routes";
 
 const wallet = vi.hoisted(() => ({ value: {} as Record<string, unknown> }));
 
@@ -96,7 +97,7 @@ function batchResponse(): BatchCreateResponse {
 
 function renderFlow() {
   return render(
-    <MemoryRouter>
+    <MemoryRouter future={ROUTER_FUTURE_FLAGS}>
       <BatchAnchorFlow />
     </MemoryRouter>,
   );
