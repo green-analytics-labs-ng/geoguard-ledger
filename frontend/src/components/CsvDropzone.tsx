@@ -105,21 +105,12 @@ export default function CsvDropzone({ onFileSelected }: Props) {
 
   return (
     <div className="space-y-4">
-      <div
-        onDrop={handleDrop}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onClick={() => inputRef.current?.click()}
-        className={`
-          border-2 border-dashed rounded-xl p-12 text-center cursor-pointer
-          transition-colors duration-200
-          ${
-            dragging
-              ? "border-stellar bg-blue-50"
-              : "border-gray-300 hover:border-gray-400 hover:bg-gray-50"
-          }
-        `}
-      >
+      {/* A `<button>`, not a `<div>` with an onClick. The div was unreachable by
+          keyboard — no role, no tab stop, no key handler — so the file picker
+          could only be opened with a mouse. The input stays a sibling rather
+          than a child: interactive content inside a button is invalid, and the
+          button's click handler opens it. */}
+      <div className="relative">
         <input
           ref={inputRef}
           type="file"
@@ -127,25 +118,46 @@ export default function CsvDropzone({ onFileSelected }: Props) {
           className="hidden"
           onChange={handleInputChange}
         />
-        <svg
-          className="mx-auto h-12 w-12 text-gray-400 mb-4"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
+        <button
+          type="button"
+          onDrop={handleDrop}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onClick={() => inputRef.current?.click()}
+          className={`
+            w-full border-2 border-dashed rounded-xl p-12 text-center cursor-pointer
+            transition-colors duration-200
+            focus:outline-none focus:ring-2 focus:ring-stellar focus:ring-offset-2
+            ${
+              dragging
+                ? "border-stellar bg-blue-50"
+                : "border-gray-300 hover:border-gray-400 hover:bg-gray-50"
+            }
+          `}
         >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={1.5}
-            d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-          />
-        </svg>
-        <p className="text-gray-600 font-medium">
-          {dragging
-            ? "Drop your data file here"
-            : "Drop a CSV, JSON, or XML file here, or click to browse"}
-        </p>
-        <p className="text-gray-400 text-sm mt-1">.csv, .json, or .xml files (max 50 MB)</p>
+          <svg
+            aria-hidden="true"
+            className="mx-auto h-12 w-12 text-gray-400 mb-4"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={1.5}
+              d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+            />
+          </svg>
+          <span className="block text-gray-600 font-medium">
+            {dragging
+              ? "Drop your data file here"
+              : "Drop a CSV, JSON, or XML file here, or click to browse"}
+          </span>
+          <span className="block text-gray-400 text-sm mt-1">
+            .csv, .json, or .xml files (max 50 MB)
+          </span>
+        </button>
       </div>
 
       {error && (
