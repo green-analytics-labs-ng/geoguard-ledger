@@ -2,8 +2,11 @@
 
 These pin the published canonicalization rules: the properties a third party
 relies on when they re-hash a dataset and expect to reproduce the anchored
-fingerprint. The normative rules live in SPECIFICATION.md.
+fingerprint. The normative rules, and the test vectors asserted below, live in
+docs/canonicalization.md.
 """
+
+import pytest
 
 from app.services.hasher import CANONICALIZATION_VERSION, compute_hash
 
@@ -50,3 +53,35 @@ def test_composed_and_decomposed_unicode_are_equivalent() -> None:
     nfd = "e\u0301"  # same glyph, e followed by a combining acute accent
     assert nfc != nfd
     assert _hash_cell(nfc) == _hash_cell(nfd)
+
+
+def test_row_order_is_significant() -> None:
+    """Rows keep their file order; swapping them must change the hash."""
+    assert compute_hash("value\n1\n2\n") != compute_hash("value\n2\n1\n")
+
+
+# ── Published test vectors ────────────────────────────────────────
+# Mirrors the table in docs/canonicalization.md. A mismatch means a hash
+# anchored under v1 can no longer be reproduced by the current code, so the
+# only correct response is to bump CANONICALIZATION_VERSION and regenerate
+# both the table and these vectors.
+PUBLISHED_VECTORS: dict[str, str] = {
+    "value\n5\n": "fa0f3c48a79985ff55647a782576d90c88d5708cccef42f0510f007ce9eab972",
+    "value\n5.0\n": "fa0f3c48a79985ff55647a782576d90c88d5708cccef42f0510f007ce9eab972",
+    "\ufeffvalue\r\n 5 \r\n": "fa0f3c48a79985ff55647a782576d90c88d5708cccef42f0510f007ce9eab972",
+    "value\n1e-3\n": "c3ac2598c41e864d5c6e708bfaebdbd10ab8a6359aa04c95395e9be2ff6a0ad8",
+    "value\n0.001\n": "c3ac2598c41e864d5c6e708bfaebdbd10ab8a6359aa04c95395e9be2ff6a0ad8",
+    "value\n7.1234567\n": "ca2ca79fec9672254626538d657f475c8db16b9a6ffa7d3afdce7a3311be7020",
+    "value\n\u00e9\n": "623953c55233048064eec0e74cfa54bf9bda8eb1c68ca593e7638874ffc38c08",
+    "value\ne\u0301\n": "623953c55233048064eec0e74cfa54bf9bda8eb1c68ca593e7638874ffc38c08",
+    "value\n0001\n": "22afd8e04572909ae0cafe6bdbdcc4c67db679b6880dcaf4c9f8e4c4dbda1630",
+    "sample_id,latitude,pH\nS001,34.052200,7.20\nS002,34.052800,7.18\n": (
+        "83e16b933d14f0cc0a2d5718ba2d86b263e129684df8c0becafbc97b26fc13a6"
+    ),
+}
+
+
+@pytest.mark.parametrize(("csv_text", "expected"), PUBLISHED_VECTORS.items())
+def test_published_vector(csv_text: str, expected: str) -> None:
+    """Every published vector still hashes to its documented digest."""
+    assert compute_hash(csv_text) == expected

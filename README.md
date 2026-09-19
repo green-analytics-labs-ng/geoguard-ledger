@@ -65,7 +65,7 @@ Environmental policy, public health interventions, and climate adaptation strate
 ### 🧪 Built for Open Science
 
 - **Fully Open Source** — Apache 2.0 licensed. Researchers can inspect, modify, and extend every layer of the stack.
-- **Reproducible Verification** — Published canonicalization rules allow independent re-hashing, making data integrity claims falsifiable and auditable.
+- **Reproducible Verification** — The [published canonicalization rules](docs/canonicalization.md), with test vectors, allow independent re-hashing, making data integrity claims falsifiable and auditable.
 - **Modular Architecture** — Swap the AI model, hash algorithm, or blockchain layer without rewriting the entire system.
 
 ---
