@@ -28,6 +28,15 @@ class Settings(BaseSettings):
     # oversight.
     api_keys: str = ""
 
+    # ── Abuse limits ──────────────────────────────────────────────
+    # The upload and verification endpoints parse and hash a file (and
+    # verification also calls the Soroban RPC), so an unauthenticated caller
+    # could otherwise repeat that work without limit. Requests are counted per
+    # client IP over a sliding window.
+    rate_limit_enabled: bool = True
+    rate_limit_requests: int = 30
+    rate_limit_window_seconds: int = 60
+
     # Maximum accepted upload size in bytes. The frontend enforces the same
     # limit client-side, but that check is trivially bypassed by calling the
     # API directly, so it is enforced again here before the body is buffered.

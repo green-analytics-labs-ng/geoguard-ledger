@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.rate_limit import rate_limit
 from app.core.security import verify_api_key
 from app.core.uploads import read_upload
 from app.db.session import get_db
@@ -103,6 +104,7 @@ async def analyze_dataset(
     submitter_address: str | None = Form(None),  # noqa: B008
     db: AsyncSession = Depends(get_db),  # noqa: B008
     _api_key: str = Depends(verify_api_key),  # noqa: B008
+    _rate_limit: None = Depends(rate_limit("datasets")),  # noqa: B008
 ) -> Any:
     """Canonicalize, hash, and analyze an uploaded dataset. No wallet required.
 

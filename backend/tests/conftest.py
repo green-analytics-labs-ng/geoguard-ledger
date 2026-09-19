@@ -5,7 +5,7 @@ and mocks the Soroban RPC client to avoid external network calls.
 """
 
 import uuid
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Iterator
 from typing import Any
 from unittest.mock import patch
 
@@ -15,6 +15,7 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.config import settings
+from app.core.rate_limit import reset_rate_limits
 from app.db.base import Base
 from app.db.session import get_db
 from app.main import create_app
@@ -50,6 +51,19 @@ def disable_auth_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
     key in every request. ``test_auth.py`` opts in per test.
     """
     monkeypatch.setattr(settings, "api_keys", "")
+
+
+@pytest.fixture(autouse=True)
+def reset_rate_limit_state() -> Iterator[None]:
+    """Clear the in-process rate-limit window around every test.
+
+    The limiter counts per client IP, and every test hits the app from the same
+    test client, so without this the requests of earlier tests would count
+    against later ones.
+    """
+    reset_rate_limits()
+    yield
+    reset_rate_limits()
 
 
 async def override_get_db() -> AsyncGenerator[AsyncSession, None]:
