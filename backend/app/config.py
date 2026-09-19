@@ -1,5 +1,10 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# The only value for which the permissive development defaults below are
+# considered safe. Anything else is a deployment, and validate_boot_settings()
+# refuses to start one that is missing what it needs.
+DEVELOPMENT = "development"
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -17,7 +22,22 @@ class Settings(BaseSettings):
 
     api_host: str = "0.0.0.0"
     api_port: int = 8000
+
+    # ── Deployment environment ────────────────────────────────────
+    # "development" keeps the permissive defaults (no auth, no contract
+    # required). Any other value is a real deployment, which
+    # ``validate_boot_settings`` gates on the settings a deployment cannot do
+    # without. Set ``ENVIRONMENT=production`` in production.
+    environment: str = DEVELOPMENT
+
     api_cors_origins: list[str] = ["http://localhost:5173"]
+    # Methods and headers the frontend actually sends. Reads are GET; uploads,
+    # anchoring, batch submission, and verification are POST. The browser
+    # attaches Content-Type and, on writes, X-API-Key. A wildcard here would
+    # also let any site's script attach arbitrary headers to allowed origins,
+    # so the list is pinned to what the frontend uses.
+    api_cors_methods: list[str] = ["GET", "POST"]
+    api_cors_headers: list[str] = ["Content-Type", "X-API-Key"]
 
     # ── Authentication ────────────────────────────────────────────
     # Comma-separated keys accepted in the ``X-API-Key`` header on the write
@@ -84,3 +104,43 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+
+def validate_boot_settings() -> None:
+    """Refuse to start an unsafe deployment before it can serve a request.
+
+    The development defaults are deliberately permissive so a fresh checkout
+    runs with no setup: no auth, no contract, CORS pointing at the Vite dev
+    server. Those same defaults are unsafe in a deployment, and each one fails
+    in a way that is worse the later it is discovered — an open write endpoint,
+    an anchor that cannot be built, a browser blocked at preflight. This runs
+    once at app creation and turns the whole set into one startup error.
+
+    Development (``ENVIRONMENT=development``) is exempt by design.
+
+    Raises:
+        ValueError: If any deployment-critical setting is missing or still at
+            its development default.
+    """
+    if settings.environment == DEVELOPMENT:
+        return
+
+    problems: list[str] = []
+    if not settings.contract_id:
+        problems.append("CONTRACT_ID is empty, so no anchor transaction can be built")
+    if not settings.api_keys.strip():
+        problems.append("API_KEYS is empty, so every write endpoint would be unauthenticated")
+    if settings.api_cors_origins == ["http://localhost:5173"]:
+        problems.append("API_CORS_ORIGINS is still the localhost development default")
+    if settings.ttl_renewal_enabled and not settings.ttl_renewal_signer_secret:
+        problems.append(
+            "TTL_RENEWAL_ENABLED is on but TTL_RENEWAL_SIGNER_SECRET is unset, "
+            "so renewals would fail at signing time"
+        )
+
+    if problems:
+        raise ValueError(
+            f"Refusing to start with ENVIRONMENT={settings.environment!r}: "
+            + "; ".join(problems)
+            + ". See docs/deployment.md for the production checklist."
+        )

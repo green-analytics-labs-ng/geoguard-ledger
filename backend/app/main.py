@@ -8,7 +8,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1 import batches, datasets, health, maintenance, verify
-from app.config import settings
+from app.config import settings, validate_boot_settings
 from app.core.exceptions import register_exception_handlers
 from app.db.session import async_engine
 
@@ -31,6 +31,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
 
 def create_app() -> FastAPI:
+    # Fail at construction rather than at the first request: a deployment that
+    # is missing its contract, auth key, or CORS origin must not come up at all.
+    validate_boot_settings()
+
     app = FastAPI(
         title="GeoGuard Ledger API",
         description="Research integrity system for geochemical data anchoring on Stellar",
@@ -42,8 +46,8 @@ def create_app() -> FastAPI:
         CORSMiddleware,
         allow_origins=settings.api_cors_origins,
         allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_methods=settings.api_cors_methods,
+        allow_headers=settings.api_cors_headers,
     )
 
     app.include_router(health.router, prefix="/api/v1", tags=["health"])
