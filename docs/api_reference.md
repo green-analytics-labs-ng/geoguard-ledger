@@ -10,21 +10,82 @@ http://localhost:8000/api/v1
 
 ## Endpoints
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/health` | Health check (probes Soroban RPC connectivity) |
-| `POST` | `/datasets` | Analyze an upload: canonicalize, hash, and score it. No wallet required |
-| `POST` | `/datasets/{id}/anchor` | Bind the researcher's address and build the unsigned anchor transaction |
-| `POST` | `/datasets/{id}/submit` | Submit a signed transaction to Stellar |
-| `GET` | `/datasets` | List all datasets |
-| `GET` | `/datasets/{id}` | Get dataset details |
-| `POST` | `/batches` | Build a Merkle root over a set of datasets and get an unsigned anchor transaction |
-| `POST` | `/batches/{id}/submit` | Submit a signed root transaction and anchor the whole batch |
-| `GET` | `/batches` | List batches |
-| `GET` | `/batches/{id}` | Get batch details |
-| `POST` | `/verify` | Verify a dataset against on-chain proof |
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| `GET` | `/health` | Public | Health check (probes Soroban RPC connectivity) |
+| `POST` | `/datasets` | API key | Analyze an upload: canonicalize, hash, and score it. No wallet required |
+| `POST` | `/datasets/{id}/anchor` | API key | Bind the researcher's address and build the unsigned anchor transaction |
+| `POST` | `/datasets/{id}/submit` | API key | Submit a signed transaction to Stellar |
+| `GET` | `/datasets` | Public | List all datasets |
+| `GET` | `/datasets/{id}` | Public | Get dataset details |
+| `POST` | `/batches` | API key | Build a Merkle root over a set of datasets and get an unsigned anchor transaction |
+| `POST` | `/batches/{id}/submit` | API key | Submit a signed root transaction and anchor the whole batch |
+| `GET` | `/batches` | Public | List batches |
+| `GET` | `/batches/{id}` | Public | Get batch details |
+| `POST` | `/verify` | Public | Verify a dataset against on-chain proof |
 
 For full request/response schemas, see [SPECIFICATION.md](../SPECIFICATION.md#5-backend-api-specification-fastapi).
+
+## Authentication
+
+Every endpoint that uploads or anchors requires an `X-API-Key` header. Read
+endpoints, `POST /verify`, and `GET /health` are public: permissionless
+verification is a feature, and a prober that cannot reach `/health` is not a
+useful prober.
+
+```bash
+curl -X POST http://localhost:8000/api/v1/datasets \
+  -H "X-API-Key: $GEOGUARD_API_KEY" \
+  -F "file=@measurements.csv"
+```
+
+The key comes from the comma-separated `API_KEYS` environment variable. **When
+`API_KEYS` is empty, authentication is disabled** — the development default, so
+a local checkout runs with no setup. Deployments are expected to set at least
+one key. Multiple keys are supported so a key can be rotated without downtime:
+add the new one alongside the old, deploy, then remove the old one.
+
+Comparison against the configured keys is constant-time, and every key is
+compared even after a match, so neither a wrong key nor a right one is
+distinguishable by response timing.
+
+Failures return `401 Unauthorized` and never reach the endpoint:
+
+```json
+{ "detail": "Missing X-API-Key header" }
+```
+
+```json
+{ "detail": "Invalid API key" }
+```
+
+In the frontend the key is entered on the **Settings** page, stored in the
+browser's `localStorage`, and attached by the API client to every write request.
+
+## Rate limits
+
+The upload and verification endpoints parse and hash a file, and verification
+also queries the Soroban RPC, so they are counted per client IP over a sliding
+window:
+
+| Setting | Default | Meaning |
+|---------|:------:|---------|
+| `RATE_LIMIT_ENABLED` | `true` | Master switch for the limiter |
+| `RATE_LIMIT_REQUESTS` | `30` | Requests allowed per window, per endpoint |
+| `RATE_LIMIT_WINDOW_SECONDS` | `60` | Length of the sliding window |
+
+Each endpoint has its own allowance, so an upload does not consume the
+verification budget. Exceeding the limit returns `429 Too Many Requests` with a
+`Retry-After` header naming the window:
+
+```json
+{ "detail": "Rate limit exceeded - at most 30 requests per 60 seconds" }
+```
+
+The counters live in the API process, so this bounds a single abusive client
+rather than acting as a shared quota across workers. A distributed store (for
+example Redis) is the natural replacement if the deployment ever runs multiple
+replicas.
 
 ## Analyzing and anchoring are separate steps
 
