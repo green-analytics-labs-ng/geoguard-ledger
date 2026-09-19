@@ -1,10 +1,14 @@
 """Tests for the deployment boot gate and the defaults it protects.
 
 The development defaults are deliberately permissive so a fresh checkout runs
-with no setup. These pin the other half of that bargain: a non-development
-environment refuses to start without the settings a deployment cannot safely do
-without, each of which would otherwise fail later and less clearly.
+with little setup. These pin the other half of that bargain: authentication is
+gated in *every* environment — an empty ``API_KEYS`` needs an explicit
+``ALLOW_UNAUTHENTICATED_WRITES`` opt-in, and that opt-in is development only —
+and a non-development environment additionally refuses to start without the
+other settings a deployment cannot safely do without.
 """
+
+import logging
 
 import pytest
 
@@ -27,17 +31,64 @@ def production(
     monkeypatch.setattr(settings, "api_cors_origins", ["https://app.example.com"])
     monkeypatch.setattr(settings, "ttl_renewal_enabled", False)
     monkeypatch.setattr(settings, "ttl_renewal_signer_secret", "")
+    # A deployment never opts out of auth, so the empty-API_KEYS check applies.
+    monkeypatch.setattr(settings, "allow_unauthenticated_writes", False)
     return monkeypatch
 
 
-def test_development_defaults_still_start(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Development is exempt: the empty contract and no auth are its defaults."""
+def test_development_requires_an_explicit_auth_decision(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Development is exempt from the deployment checks, but not from choosing
+    whether writes are authenticated: an empty API_KEYS fails closed."""
     monkeypatch.setattr(settings, "environment", DEVELOPMENT)
     monkeypatch.setattr(settings, "contract_id", "")
     monkeypatch.setattr(settings, "api_keys", "")
+    monkeypatch.setattr(settings, "allow_unauthenticated_writes", False)
+
+    with pytest.raises(ValueError, match="API_KEYS"):
+        validate_boot_settings()
+
+
+def test_development_starts_once_the_opt_in_is_explicit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The opt-in is what lets a checkout run without authentication."""
+    monkeypatch.setattr(settings, "environment", DEVELOPMENT)
+    monkeypatch.setattr(settings, "contract_id", "")
+    monkeypatch.setattr(settings, "api_keys", "")
+    monkeypatch.setattr(settings, "allow_unauthenticated_writes", True)
 
     validate_boot_settings()
-    create_app()  # the gate lets a development app through
+    create_app()
+
+
+def test_configured_keys_need_no_opt_in(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The opt-in only concerns running *without* auth, so a key alone suffices."""
+    monkeypatch.setattr(settings, "environment", DEVELOPMENT)
+    monkeypatch.setattr(settings, "contract_id", "")
+    monkeypatch.setattr(settings, "api_keys", "a-key")
+    monkeypatch.setattr(settings, "allow_unauthenticated_writes", False)
+
+    validate_boot_settings()
+    create_app()
+
+
+def test_running_without_auth_warns_loudly(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Disabling auth is allowed, but never quiet."""
+    monkeypatch.setattr(settings, "environment", DEVELOPMENT)
+    monkeypatch.setattr(settings, "api_keys", "")
+    monkeypatch.setattr(settings, "allow_unauthenticated_writes", True)
+
+    with caplog.at_level(logging.WARNING, logger="app.config"):
+        validate_boot_settings()
+
+    assert any(
+        "API_KEYS is empty" in record.getMessage() and "open" in record.getMessage()
+        for record in caplog.records
+    )
 
 
 def test_valid_production_settings_start(production: pytest.MonkeyPatch) -> None:
@@ -55,6 +106,17 @@ def test_production_requires_a_contract_id(production: pytest.MonkeyPatch) -> No
 def test_production_requires_authentication(production: pytest.MonkeyPatch) -> None:
     """An empty key list means every write endpoint would be open."""
     production.setattr(settings, "api_keys", "")
+
+    with pytest.raises(ValueError, match="API_KEYS"):
+        validate_boot_settings()
+
+
+def test_production_cannot_opt_out_of_authentication(
+    production: pytest.MonkeyPatch,
+) -> None:
+    """The opt-in is a development convenience, not a way to ship an open API."""
+    production.setattr(settings, "api_keys", "")
+    production.setattr(settings, "allow_unauthenticated_writes", True)
 
     with pytest.raises(ValueError, match="API_KEYS"):
         validate_boot_settings()
@@ -101,6 +163,18 @@ def test_boot_gate_is_wired_into_app_creation(production: pytest.MonkeyPatch) ->
 
     with pytest.raises(ValueError, match="API_KEYS"):
         create_app()
+
+
+def test_malformed_trusted_proxy_is_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A typo would silently restore the "every caller is the proxy" bug."""
+    monkeypatch.setattr(settings, "environment", DEVELOPMENT)
+    monkeypatch.setattr(settings, "contract_id", "")
+    monkeypatch.setattr(settings, "api_keys", "")
+    monkeypatch.setattr(settings, "allow_unauthenticated_writes", True)
+    monkeypatch.setattr(settings, "trusted_proxies", ["127.0.0.1", "", "not-an-address"])
+
+    with pytest.raises(ValueError, match="TRUSTED_PROXIES"):
+        validate_boot_settings()
 
 
 def test_cors_is_pinned_to_the_frontend_methods_and_headers() -> None:

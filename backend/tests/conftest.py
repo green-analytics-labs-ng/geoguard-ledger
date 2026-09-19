@@ -4,6 +4,7 @@ Uses an in-memory SQLite database (aiosqlite) for isolated test DB state
 and mocks the Soroban RPC client to avoid external network calls.
 """
 
+import os
 import uuid
 from collections.abc import AsyncGenerator, Iterator
 from typing import Any
@@ -13,6 +14,15 @@ import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+
+# ``app.main`` builds the application at import time, and boot validation now
+# refuses an empty ``API_KEYS`` unless running without authentication was
+# explicitly opted into. A test run is development, so opt in the same way the
+# dev template does, before the first ``app.*`` import instantiates settings.
+# Guarded by an ``if`` so the assignment does not split the import block ruff
+# checks below.
+if os.environ.get("ALLOW_UNAUTHENTICATED_WRITES") is None:
+    os.environ["ALLOW_UNAUTHENTICATED_WRITES"] = "true"
 
 from app.config import settings
 from app.core.rate_limit import reset_rate_limits
@@ -49,8 +59,13 @@ def disable_auth_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
     Otherwise a developer's local ``.env`` that sets ``API_KEYS`` would make the
     whole suite fail, and tests that are not about auth would have to carry a
     key in every request. ``test_auth.py`` opts in per test.
+
+    Running without auth needs the ``ALLOW_UNAUTHENTICATED_WRITES`` opt-in, so
+    the same fixture turns it on; the tests that assert the gate itself turn it
+    back off.
     """
     monkeypatch.setattr(settings, "api_keys", "")
+    monkeypatch.setattr(settings, "allow_unauthenticated_writes", True)
 
 
 @pytest.fixture(autouse=True)

@@ -39,11 +39,14 @@ curl -X POST http://localhost:8000/api/v1/datasets \
   -F "file=@measurements.csv"
 ```
 
-The key comes from the comma-separated `API_KEYS` environment variable. **When
-`API_KEYS` is empty, authentication is disabled** — the development default, so
-a local checkout runs with no setup. Deployments are expected to set at least
-one key. Multiple keys are supported so a key can be rotated without downtime:
-add the new one alongside the old, deploy, then remove the old one.
+The key comes from the comma-separated `API_KEYS` environment variable. With
+`API_KEYS` empty the app **refuses to start** unless
+`ALLOW_UNAUTHENTICATED_WRITES=true` is set alongside it, so an open write API is
+an explicit development choice rather than a default a checkout can drift into.
+That opt-in is honoured in development only — outside development a key is
+always required — and setting it logs a warning at boot. Multiple keys are
+supported so a key can be rotated without downtime: add the new one alongside
+the old, deploy, then remove the old one.
 
 Comparison against the configured keys is constant-time, and every key is
 compared even after a match, so neither a wrong key nor a right one is
@@ -60,7 +63,9 @@ Failures return `401 Unauthorized` and never reach the endpoint:
 ```
 
 In the frontend the key is entered on the **Settings** page, stored in the
-browser's `localStorage`, and attached by the API client to every write request.
+browser's `localStorage`, and attached by the API client to the protected write
+endpoints (uploads and anchoring) only. `POST /verify` stays public and never
+carries the key, so the shared secret is not sent on permissionless calls.
 
 ## Rate limits
 
@@ -81,6 +86,14 @@ verification budget. Exceeding the limit returns `429 Too Many Requests` with a
 ```json
 { "detail": "Rate limit exceeded - at most 30 requests per 60 seconds" }
 ```
+
+Behind a reverse proxy the client is read from `X-Forwarded-For`, but only when
+the connecting peer is listed in `TRUSTED_PROXIES` — a JSON array of addresses
+or CIDRs, empty by default. Without it the header is ignored, so every caller
+behind the proxy shares one window; with it, each forwarded client gets its own,
+and hops that are themselves trusted proxies are skipped to find the real
+client. A malformed entry fails at boot rather than silently reverting to the
+proxy's address.
 
 The counters live in the API process, so this bounds a single abusive client
 rather than acting as a shared quota across workers. A distributed store (for

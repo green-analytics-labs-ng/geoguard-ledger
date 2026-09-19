@@ -52,6 +52,11 @@ services:
       # Deployments are permanent and never replace an earlier instance, so a
       # deployment can lag this source — docs/deployment.md has the runbook.
       CONTRACT_ID: "CBY2P6QWTUYNRXFL6HDXOMUUBUZT4VORPBOLUFRWOIRANK7VCLMYCXC4"
+      # Local development only: this stack configures no API key, so the app
+      # needs the explicit opt-in to serve. It refuses to start without a key
+      # otherwise, and logs a warning because the write endpoints are then open.
+      # A deployment sets API_KEYS instead of this.
+      ALLOW_UNAUTHENTICATED_WRITES: "true"
     ports:
       - "8000:8000"
     depends_on:

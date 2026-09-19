@@ -349,23 +349,25 @@ database disagree about.
 ## Production checklist
 
 Everything a deployment needs that the development defaults do not provide.
-The app enforces the first five at boot (`validate_boot_settings` in
-`app/config.py`): set `ENVIRONMENT` to anything other than `development` and it
-refuses to start while any are missing, listing all of them at once.
+`validate_boot_settings` in `app/config.py` enforces them at boot: the
+authentication check applies in *every* environment, and setting `ENVIRONMENT`
+to anything other than `development` turns on the rest. It refuses to start
+while any are missing, listing all of them at once.
 
 | Setting | Required value | Why it matters |
 |---|---|---|
-| `ENVIRONMENT` | `production` (any non-development name) | Turns the boot gate on. `development` is the only value that skips it. |
+| `ENVIRONMENT` | `production` (any non-development name) | Turns on the contract, CORS, and renewal checks. `development` is the only value that skips those; the `API_KEYS` check applies everywhere. |
 | `CONTRACT_ID` | The deployed contract this release targets | Without it no anchor transaction can be built, so every write fails at the first request. |
-| `API_KEYS` | At least one key | Empty disables authentication, which leaves uploads and anchoring open to anyone who can reach the host. |
+| `API_KEYS` | At least one key | Empty leaves uploads and anchoring open to anyone who can reach the host, so it is refused at boot unless `ALLOW_UNAUTHENTICATED_WRITES` is set — and that opt-in is development-only, so a deployment cannot come up without a key. |
 | `API_CORS_ORIGINS` | The frontend's real origin(s) | The localhost default leaves the browser blocked at preflight. |
 | `TTL_RENEWAL_SIGNER_SECRET` | A funded `S...` key, when `TTL_RENEWAL_ENABLED=true` | Renewal spends fees and cannot run unsigned. |
 
 Beyond the boot gate:
 
+- [ ] **Leave `ALLOW_UNAUTHENTICATED_WRITES` unset.** It is ignored outside development, but it is the switch that lets a development host serve open writes, so it has no place in a deployment.
 - [ ] **Run migrations before the rollout**, once, as their own step — never from the backend's command (see [Database schema and boot order](#database-schema-and-boot-order)).
 - [ ] **Schedule the TTL renewal job** tighter than `TTL_RENEWAL_WINDOW_DAYS`, or anchors are archived once their TTL lapses and verification silently stops answering (see [Scheduling the TTL renewal job](#scheduling-the-ttl-renewal-job)).
-- [ ] **Terminate TLS in front of the API** and keep the API key out of logs and URLs — it is a shared secret, not an identity.
+- [ ] **Terminate TLS in front of the API** and keep the API key out of logs and URLs — it is a shared secret, not an identity. Set `TRUSTED_PROXIES` to the terminating proxy's address(es) so the rate limiter counts the real client; otherwise every caller behind it shares one window.
 - [ ] **Handle the renewal signer as a secret.** It can only push expiries out, never forge, alter, or delete a record, but it pays fees, so treat it as privileged and rotate it on-chain if it leaks (see [Secrets](#secrets)).
 - [ ] **Do not expose Postgres.** `docker-compose.yml` binds it to `127.0.0.1`; keep a deployment's database off any public interface.
 - [ ] **CORS stays pinned.** Methods and headers are limited to what the frontend sends (`API_CORS_METHODS`, `API_CORS_HEADERS`); widen them only with a matching frontend change.

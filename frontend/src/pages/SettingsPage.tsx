@@ -74,7 +74,7 @@ export default function SettingsPage() {
               <code className="text-xs bg-gray-100 px-1 py-0.5 rounded">API_KEYS</code> configured.
               The key is stored in this browser and sent as the{" "}
               <code className="text-xs bg-gray-100 px-1 py-0.5 rounded">X-API-Key</code> header on
-              every write request.
+              upload and anchoring requests. Verification stays public and never carries it.
             </p>
             <div className="flex items-end gap-2">
               <div className="flex-1">

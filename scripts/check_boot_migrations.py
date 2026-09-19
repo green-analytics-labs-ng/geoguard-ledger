@@ -140,7 +140,15 @@ class Server:
             self.command,
             shell=True,
             cwd=BACKEND_DIR,
-            env={**os.environ, "DATABASE_URL": self.database_url},
+            env={
+                **os.environ,
+                "DATABASE_URL": self.database_url,
+                # These checks exercise boot and schema, not auth, and they start
+                # the shipped command with only this environment (compose's env is
+                # not inherited). Give the app the same development opt-in the dev
+                # stack uses so it can boot with no API_KEYS configured.
+                "ALLOW_UNAUTHENTICATED_WRITES": "true",
+            },
             stdout=self.log,
             stderr=subprocess.STDOUT,
             start_new_session=True,

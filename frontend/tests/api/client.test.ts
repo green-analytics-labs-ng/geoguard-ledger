@@ -60,4 +60,28 @@ describe("API client key header", () => {
 
     expect(sentKey()).toBe("spaced-key");
   });
+
+  it("does not attach the key to the public verification endpoint", async () => {
+    setApiKey("secret-key");
+
+    await client.post("/verify", null, { adapter });
+
+    expect(sentKey()).toBeFalsy();
+  });
+
+  it("attaches the key to an anchoring subpath", async () => {
+    setApiKey("secret-key");
+
+    await client.post("/datasets/abc/anchor", {}, { adapter });
+
+    expect(sentKey()).toBe("secret-key");
+  });
+
+  it("does not attach the key to a lookalike path", async () => {
+    setApiKey("secret-key");
+
+    await client.post("/datasets-archive", {}, { adapter });
+
+    expect(sentKey()).toBeFalsy();
+  });
 });

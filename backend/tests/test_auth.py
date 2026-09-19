@@ -1,10 +1,11 @@
 """Tests for API-key authentication on the write endpoints.
 
-The API starts with authentication disabled (no ``API_KEYS`` configured) so a
-local checkout runs without setup. These tests characterize that dev behaviour:
-upload and anchor calls succeed without a header. Once keys are configured,
-every write endpoint must refuse an unauthenticated caller, while verification
-and health stay public.
+The suite runs with authentication disabled — the explicit
+``ALLOW_UNAUTHENTICATED_WRITES`` opt-in that ``conftest`` sets, standing in for
+a developer's own choice. These tests characterize that behaviour: upload and
+anchor calls succeed without a header. Once keys are configured, every write
+endpoint must refuse an unauthenticated caller, while verification and health
+stay public.
 """
 
 from unittest.mock import AsyncMock, patch

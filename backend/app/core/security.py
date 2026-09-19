@@ -2,7 +2,9 @@
 
 Uploads and anchoring require an ``X-API-Key`` header whose value matches one of
 the keys configured in ``API_KEYS``. With no keys configured, authentication is
-disabled — the development default — so a local checkout runs without setup.
+disabled — but only in development and only under the explicit
+``ALLOW_UNAUTHENTICATED_WRITES=true`` opt-in, so a checkout cannot run open by
+accident (see ``validate_boot_settings``).
 
 Verification is deliberately excluded: it is public and permissionless because
 that is what makes a proof independently checkable, and it is rate limited

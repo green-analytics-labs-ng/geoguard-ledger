@@ -27,9 +27,17 @@ Project-wide documentation lives in [`../docs`](../docs):
 
 ```bash
 uv sync --dev                                  # install dependencies
+cp .env.example .env                           # local defaults (see the note below)
 uv run alembic upgrade head                    # apply migrations
 uv run uvicorn app.main:app --reload           # serve on :8000
 ```
+
+The app refuses to start with an empty `API_KEYS` unless
+`ALLOW_UNAUTHENTICATED_WRITES=true` opts into it, so an open write API is a
+deliberate, development-only choice rather than a default. `.env.example` sets
+that opt-in for local work; set `API_KEYS` instead for anything that is not a
+local checkout. Starting without a key also logs a warning — see
+[`../docs/api_reference.md`](../docs/api_reference.md#authentication).
 
 ## Command-line entry points
 
