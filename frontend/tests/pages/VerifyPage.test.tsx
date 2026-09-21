@@ -74,8 +74,10 @@ describe("VerifyPage linked hash", () => {
   it("prefills and verifies a hash supplied in the query string", async () => {
     renderPage(`/verify?dataset_hash=${HASH}`);
 
+    // The signal is part of the call: a verification that is superseded or
+    // unmounted has to be cancellable, so the page always passes one.
     await waitFor(() =>
-      expect(verifyApi.verifyByHash).toHaveBeenCalledWith(HASH),
+      expect(verifyApi.verifyByHash).toHaveBeenCalledWith(HASH, expect.any(AbortSignal)),
     );
     expect(hashInput().value).toBe(HASH);
     expect(screen.getByText("Dataset Verified")).toBeTruthy();

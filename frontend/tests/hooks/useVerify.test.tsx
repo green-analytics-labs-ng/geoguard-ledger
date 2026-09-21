@@ -40,7 +40,7 @@ describe("useVerify", () => {
       await result.current.verify(HASH);
     });
 
-    expect(api.verifyByHash).toHaveBeenCalledWith(HASH);
+    expect(api.verifyByHash).toHaveBeenCalledWith(HASH, expect.any(AbortSignal));
     expect(api.verifyById).not.toHaveBeenCalled();
     expect(result.current.result?.match).toBe(true);
     expect(result.current.error).toBeNull();
@@ -65,8 +65,55 @@ describe("useVerify", () => {
       await result.current.verify(file);
     });
 
-    expect(api.verifyByFile).toHaveBeenCalledWith(file);
+    expect(api.verifyByFile).toHaveBeenCalledWith(file, expect.any(AbortSignal));
     expect(result.current.result?.re_computed_hash).toBe(HASH);
+  });
+
+  it("aborts the in-flight request on unmount", async () => {
+    let signal: AbortSignal | undefined;
+    api.verifyByHash.mockImplementation((_hash: string, passed?: AbortSignal) => {
+      signal = passed;
+      // Never settles: the request is still in flight when the page goes away.
+      return new Promise(() => undefined);
+    });
+
+    const { result, unmount } = renderHook(() => useVerify());
+    act(() => {
+      void result.current.verify(HASH);
+    });
+    await waitFor(() => expect(signal).toBeDefined());
+    expect(signal?.aborted).toBe(false);
+
+    unmount();
+
+    // Nothing is left to write state with: the request that would have
+    // answered after unmount is cancelled instead of resolving into a dead
+    // component.
+    expect(signal?.aborted).toBe(true);
+  });
+
+  it("cancels a superseded verification rather than racing it", async () => {
+    const signals: AbortSignal[] = [];
+    api.verifyByHash.mockImplementation((_hash: string, passed?: AbortSignal) => {
+      if (passed) signals.push(passed);
+      return new Promise(() => undefined);
+    });
+
+    const { result } = renderHook(() => useVerify());
+    act(() => {
+      void result.current.verify(HASH);
+    });
+    await waitFor(() => expect(signals).toHaveLength(1));
+
+    act(() => {
+      void result.current.verify(HASH);
+    });
+    await waitFor(() => expect(signals).toHaveLength(2));
+
+    // The first search is abandoned, so a slow first answer cannot overwrite
+    // the second one's result.
+    expect(signals[0].aborted).toBe(true);
+    expect(signals[1].aborted).toBe(false);
   });
 
   it("exposes the backend error message on failure", async () => {
