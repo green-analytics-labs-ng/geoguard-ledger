@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { Link, NavLink, Outlet } from "react-router-dom";
 import WalletConnector from "./WalletConnector";
+import NetworkMismatchBanner from "./NetworkMismatchBanner";
 
 /**
  * Shown while the current route's chunk is being fetched.
@@ -88,6 +89,11 @@ export default function AppLayout() {
           <WalletConnector compact />
         </div>
       </header>
+
+      {/* Sits between the header and the content: it is about the wallet in the
+          header, and it must stay visible while the user works, not scroll
+          away with the page. */}
+      <NetworkMismatchBanner />
 
       {/* `tabIndex={-1}` so the skip link can move focus here: an element that
           is not focusable would scroll the page and leave the focus ring
