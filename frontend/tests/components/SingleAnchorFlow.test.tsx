@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
+import { ROUTER_FUTURE_FLAGS } from "../../src/routerConfig";
 
 const wallet = vi.hoisted(() => ({ value: {} as Record<string, unknown> }));
 
@@ -69,7 +70,7 @@ function anchorResponse(): DatasetAnchorResponse {
 
 function renderFlow() {
   return render(
-    <MemoryRouter>
+    <MemoryRouter future={ROUTER_FUTURE_FLAGS}>
       <SingleAnchorFlow />
     </MemoryRouter>,
   );
@@ -212,5 +213,35 @@ describe("SingleAnchorFlow", () => {
 
     expect(screen.getByText(/Drop a CSV, JSON, or XML file here/)).toBeTruthy();
     expect(screen.queryByText(/sign with your Freighter wallet/)).toBeNull();
+  });
+
+  it("points an unfunded wallet at the faucet instead of the status text", async () => {
+    const { container } = renderFlow();
+    await reachReportStep(container);
+
+    // The backend answers 400 with the actionable half in `detail`, which is
+    // the only place the faucet link exists. Axios on its own would leave the
+    // user with "Request failed with status code 400".
+    const faucet = `https://friendbot.stellar.org?addr=${PUBLIC_KEY}`;
+    datasetsApi.anchorDataset.mockRejectedValueOnce({
+      response: {
+        data: {
+          detail:
+            `Your Stellar account ${PUBLIC_KEY} is not funded on Testnet, so it has no ` +
+            `sequence number to sign the anchor with. Fund it at ${faucet} (free ` +
+            "testnet XLM), then reconnect your wallet and try again.",
+        },
+      },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Continue to Sign" }));
+
+    // The link is rendered as a link, not left as text to copy by hand.
+    const link = await screen.findByRole("link", { name: faucet });
+    expect(link.getAttribute("href")).toBe(faucet);
+    // Funding the account does not need the flow restarted: the report and its
+    // sign button are still on screen, so the user can fund and retry.
+    expect(screen.queryByText(/sign with your Freighter wallet/)).toBeNull();
+    expect(screen.getByRole("button", { name: "Continue to Sign" })).toBeTruthy();
   });
 });

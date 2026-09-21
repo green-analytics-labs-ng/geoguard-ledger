@@ -1,11 +1,11 @@
 name: Release
 
-# Tag-triggered. Pushing v0.2.0 publishes a release containing the contract WASM
+# Tag-triggered. Pushing v0.3.0 publishes a release containing the contract WASM
 # and its SHA-256, so a deployment can be tied to an exact, downloadable artifact
 # instead of whatever the local working tree happened to build.
 #
-#   git tag -a v0.2.0 -m "GeoGuard Ledger v0.2.0"
-#   git push origin v0.2.0
+#   git tag -a v0.3.0 -m "GeoGuard Ledger v0.3.0"
+#   git push origin v0.3.0
 
 on:
   push:

@@ -218,8 +218,8 @@ Pushing a `v*` tag publishes a GitHub release containing the built WASM and its
 SHA-256:
 
 ```bash
-git tag -a v0.2.0 -m "GeoGuard Ledger v0.2.0"
-git push origin v0.2.0
+git tag -a v0.3.0 -m "GeoGuard Ledger v0.3.0"
+git push origin v0.3.0
 ```
 
 The `Release` workflow first checks that the tag matches the version in

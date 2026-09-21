@@ -34,6 +34,15 @@ jobs:
             contracts/geoguard-ledger/target
           key: ${{ runner.os }}-cargo-${{ hashFiles('contracts/geoguard-ledger/Cargo.lock') }}
 
+      # cargo-audit checks Cargo.lock against the RustSec advisory database. It
+      # reads the lockfile rather than the compiled output, so it needs no wasm32
+      # target and belongs before the target-specific steps. `--locked` pins
+      # cargo-audit's own dependency tree to what was published and reviewed.
+      - name: Audit dependencies with cargo-audit
+        run: |
+          cargo install cargo-audit --locked
+          cargo audit
+
       - name: Check formatting
         run: cargo fmt --all -- --check
 
@@ -120,6 +129,15 @@ jobs:
       - name: Install dependencies
         run: uv sync --dev
 
+      # pip-audit scores the resolved dependency set against the GitHub Advisory
+      # database and PyPI's OSV feed. `uv run --with` drops it into the same
+      # environment `uv sync` just built, so it audits what CI actually installs
+      # rather than what the constraints nominally allow. A known vulnerability
+      # fails the job here; Dependabot (.github/dependabot.yml) is what keeps the
+      # fixed versions arriving before that happens.
+      - name: Audit dependencies with pip-audit
+        run: uv run --with pip-audit pip-audit
+
       - name: Lint with ruff
         run: uv run ruff check .
 
@@ -134,6 +152,17 @@ jobs:
       # gate: coverage can climb but not slide back unnoticed.
       - name: Run tests
         run: uv run pytest --cov=app --cov-report=term-missing --cov-report=xml --cov-fail-under=80
+
+      # Uploaded even when the suite failed, so a drop is still comparable with
+      # the previous run. `coverage-report` turns this into the pull request
+      # comment; nothing depends on it being present.
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: backend-coverage
+          path: backend/coverage.xml
+          if-no-files-found: ignore
 
   frontend-lint-test:
     name: Frontend - Lint & Test
@@ -154,6 +183,16 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Production dependencies only. A dev-toolchain advisory never reaches a
+      # user, and failing on one would train us to wave the check through; the
+      # packages that ship are the ones that have to be clean.
+      #
+      # The script, not plain `npm audit`, because a few findings here can only be
+      # closed by a semver-major upgrade. It fails on anything new while naming
+      # what is accepted and why — see scripts/audit-production.mjs.
+      - name: Audit production dependencies
+        run: npm run audit:prod
+
       - name: Type check
         run: npm run typecheck
 
@@ -163,8 +202,20 @@ jobs:
       - name: Format check
         run: npm run format:check
 
-      - name: Run tests
-        run: npm run test -- --run
+      # Coverage is what runs here, not a plain test pass: the text reporter
+      # prints the summary table into the job log, and the json-summary file is
+      # what `coverage-report` reads back out of the uploaded artifact. Both
+      # reporters are configured in vite.config.ts.
+      - name: Run tests with coverage
+        run: npm run test:coverage
+
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: frontend-coverage
+          path: frontend/coverage/coverage-summary.json
+          if-no-files-found: ignore
 
       # `npm run build` runs `tsc -b`, which is the only thing that type-checks
       # vite.config.ts and the tsconfig.node.json project — the `typecheck`
@@ -172,6 +223,63 @@ jobs:
       # broken build config from reaching main unnoticed.
       - name: Production build
         run: npm run build
+
+  coverage-report:
+    name: Coverage - Comment the delta
+    # Pull requests only: on a push there is no conversation to comment in, and
+    # the sticky comment would have no thread to land in. Both suites have to
+    # finish first because their artifacts are the input.
+    if: github.event_name == 'pull_request'
+    needs: [backend-lint-test, frontend-lint-test]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # `gh run download` reads the base branch's artifacts, and the comment
+      # itself needs write access to the pull request.
+      actions: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Download this run's coverage
+        # A job that failed before it wrote a report must not turn a coverage
+        # comment into a second failure, so a missing artifact is tolerated.
+        continue-on-error: true
+        uses: actions/download-artifact@v7
+        with:
+          pattern: "*-coverage"
+          path: head-coverage
+
+      # The base branch is the reference point for the delta. Its most recent
+      # run on that branch is what a reviewer would call "the number before this
+      # change", which the run for this pull request's merge base is not.
+      - name: Download the base branch's coverage
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          for artifact in backend-coverage frontend-coverage; do
+            gh run download \
+              --repo "$GITHUB_REPOSITORY" \
+              --branch "${{ github.base_ref }}" \
+              --name "$artifact" \
+              --dir "base-coverage/$artifact" || true
+          done
+
+      - name: Write the coverage summary
+        run: |
+          python3 scripts/coverage_delta.py \
+            --head head-coverage \
+            --base base-coverage \
+            --base-label "${{ github.base_ref }}" \
+            --out coverage-comment.md | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Comment on the pull request
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: coverage
+          path: coverage-comment.md
 
   brand-assets:
     name: Brand - Assets Match Generator
@@ -256,7 +364,7 @@ jobs:
 
   all-pass:
     name: All Checks Pass
-    needs: [contract-lint-test, migrations, backend-lint-test, frontend-lint-test, brand-assets, schema-boot, commit-attribution]
+    needs: [contract-lint-test, migrations, backend-lint-test, frontend-lint-test, coverage-report, brand-assets, schema-boot, commit-attribution]
     runs-on: ubuntu-latest
     steps:
       - run: echo "✅ All checks passed"

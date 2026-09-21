@@ -399,14 +399,14 @@ GeoGuard Ledger is built on the principles of **Open Science** and **Research Re
 
 If you use GeoGuard Ledger in your research, please cite:
 
-> Green Analytics Labs. *GeoGuard Ledger: Immutable Integrity for Environmental Research*. Version 0.2.0. Zaria, Kaduna State, Nigeria. [https://github.com/green-analytics-labs-ng/geoguard-ledger](https://github.com/green-analytics-labs-ng/geoguard-ledger)
+> Green Analytics Labs. *GeoGuard Ledger: Immutable Integrity for Environmental Research*. Version 0.3.0. Zaria, Kaduna State, Nigeria. [https://github.com/green-analytics-labs-ng/geoguard-ledger](https://github.com/green-analytics-labs-ng/geoguard-ledger)
 
 ```bibtex
 @software{geoguard_ledger_2026,
   author       = {{Green Analytics Labs}},
   title        = {{GeoGuard Ledger}: Immutable Integrity for Environmental Research},
   year         = {2026},
-  version      = {0.2.0},
+  version      = {0.3.0},
   publisher    = {Green Analytics Labs},
   address      = {Zaria, Kaduna State, Nigeria},
   url          = {https://github.com/green-analytics-labs-ng/geoguard-ledger},

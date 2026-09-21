@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
+import { ROUTER_FUTURE_FLAGS } from "../../src/routerConfig";
 
 const wallet = vi.hoisted(() => ({ value: {} as Record<string, unknown> }));
 
@@ -34,7 +35,7 @@ const MATCH = {
 
 function renderPage(entry = "/verify") {
   return render(
-    <MemoryRouter initialEntries={[entry]}>
+    <MemoryRouter future={ROUTER_FUTURE_FLAGS} initialEntries={[entry]}>
       <VerifyPage />
     </MemoryRouter>,
   );
@@ -73,8 +74,10 @@ describe("VerifyPage linked hash", () => {
   it("prefills and verifies a hash supplied in the query string", async () => {
     renderPage(`/verify?dataset_hash=${HASH}`);
 
+    // The signal is part of the call: a verification that is superseded or
+    // unmounted has to be cancellable, so the page always passes one.
     await waitFor(() =>
-      expect(verifyApi.verifyByHash).toHaveBeenCalledWith(HASH),
+      expect(verifyApi.verifyByHash).toHaveBeenCalledWith(HASH, expect.any(AbortSignal)),
     );
     expect(hashInput().value).toBe(HASH);
     expect(screen.getByText("Dataset Verified")).toBeTruthy();
@@ -84,5 +87,38 @@ describe("VerifyPage linked hash", () => {
     renderPage("/verify?dataset_hash=not-a-hash");
 
     expect(verifyApi.verifyByHash).not.toHaveBeenCalled();
+  });
+});
+
+describe("VerifyPage accessible names", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    wallet.value = {
+      connected: false,
+      publicKey: null,
+      network: null,
+      networkPassphrase: "",
+      error: null,
+      connect: vi.fn(),
+      disconnect: vi.fn(),
+      signTx: vi.fn(),
+    };
+  });
+
+  it("associates the hash label with its input", () => {
+    renderPage();
+
+    // Found by its label rather than its placeholder: a placeholder is a hint,
+    // not a name, and it disappears as soon as the user types.
+    expect(screen.getByLabelText("Dataset Hash (SHA-256)")).toBe(hashInput());
+  });
+
+  it("associates the file label with the file input", () => {
+    renderPage();
+    fireEvent.click(screen.getByRole("button", { name: "By File Upload" }));
+
+    const input = screen.getByLabelText("Upload a data file to re-compute its hash");
+    expect(input).toBeInstanceOf(HTMLInputElement);
+    expect((input as HTMLInputElement).type).toBe("file");
   });
 });

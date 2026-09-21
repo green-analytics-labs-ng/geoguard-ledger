@@ -27,6 +27,21 @@ export function apiErrorMessage(err: unknown, fallback: string): string {
 }
 
 /**
+ * The HTTP status behind a failed request, or null when there was no response.
+ *
+ * A request can fail without one — a timeout, a dropped connection — and that is
+ * a different thing from the server answering "no such dataset", so callers get
+ * to tell those apart instead of guessing from the message text.
+ */
+export function apiErrorStatus(err: unknown): number | null {
+  if (typeof err === "object" && err !== null) {
+    const status = (err as { response?: { status?: unknown } }).response?.status;
+    if (typeof status === "number") return status;
+  }
+  return null;
+}
+
+/**
  * Split a message into text and URL runs.
  *
  * `String.split` with a capturing group interleaves the captured separators, so

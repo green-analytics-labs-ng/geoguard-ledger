@@ -9,9 +9,11 @@ function fileInput(container: HTMLElement): HTMLInputElement {
 }
 
 function dropzone(): HTMLElement {
-  const label = screen.getByText(/Drop a .*file here/i);
-  const zone = label.closest("div");
-  if (!zone) throw new Error("dropzone container not found");
+  // The drop target is the button that also opens the file picker, so dropping
+  // and browsing go through the same element.
+  const prompt = screen.getByText(/Drop a .*file here/i);
+  const zone = prompt.closest("button");
+  if (!zone) throw new Error("dropzone button not found");
   return zone;
 }
 
@@ -145,6 +147,24 @@ describe("CsvDropzone", () => {
 
     await waitFor(() => expect(onFileSelected).toHaveBeenCalledTimes(1));
     expect(onFileSelected.mock.calls[0][1].headers).toEqual(["a", "b"]);
+  });
+
+  it("is a real button, so the picker is reachable without a mouse", () => {
+    render(<CsvDropzone onFileSelected={vi.fn()} />);
+
+    // A `<div>` with an onClick is not focusable: keyboard users could never
+    // open the file picker. A native button is a tab stop and activates on
+    // Enter and Space without any key handler of ours.
+    const zone = screen.getByRole("button", { name: /Drop a .*file here/i });
+    expect(zone.tagName).toBe("BUTTON");
+
+    const openPicker = vi.spyOn(HTMLInputElement.prototype, "click");
+    openPicker.mockImplementation(() => undefined);
+
+    fireEvent.click(zone);
+
+    expect(openPicker).toHaveBeenCalledTimes(1);
+    openPicker.mockRestore();
   });
 
   it("validates a dropped file the same way as a browsed one", () => {

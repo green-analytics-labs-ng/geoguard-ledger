@@ -1,6 +1,6 @@
 # GeoGuard Ledger — Specification
 
-**Version:** 0.2.0  
+**Version:** 0.3.0  
 **Author:** Green Analytics Labs  
 **License:** Apache 2.0  
 **Status:** Active — Implementation In Progress

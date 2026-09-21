@@ -19,9 +19,11 @@ function fileInput(container: HTMLElement): HTMLInputElement {
 }
 
 function dropzone(): HTMLElement {
-  const label = screen.getByText(/Drop a .*file here/i);
-  const zone = label.closest("div");
-  if (!zone) throw new Error("dropzone container not found");
+  // The drop target is the button that also opens the file picker, so dropping
+  // and browsing go through the same element.
+  const prompt = screen.getByText(/Drop a .*file here/i);
+  const zone = prompt.closest("button");
+  if (!zone) throw new Error("dropzone button not found");
   return zone;
 }
 

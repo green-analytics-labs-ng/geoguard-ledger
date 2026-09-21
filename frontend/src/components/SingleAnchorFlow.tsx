@@ -185,10 +185,13 @@ export default function SingleAnchorFlow() {
               className="btn-primary inline-flex items-center gap-2"
             >
               {processing ? (
-                <>
-                  <span className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />
+                <span role="status" className="inline-flex items-center gap-2">
+                  <span
+                    aria-hidden="true"
+                    className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full"
+                  />
                   Processing...
-                </>
+                </span>
               ) : (
                 "Process & Detect Anomalies"
               )}
@@ -233,10 +236,13 @@ export default function SingleAnchorFlow() {
               className="btn-primary inline-flex items-center gap-2"
             >
               {processing ? (
-                <>
-                  <span className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />
+                <span role="status" className="inline-flex items-center gap-2">
+                  <span
+                    aria-hidden="true"
+                    className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full"
+                  />
                   Preparing...
-                </>
+                </span>
               ) : !connected ? (
                 "Connect Wallet First"
               ) : (
@@ -295,10 +301,13 @@ export default function SingleAnchorFlow() {
               className="btn-primary inline-flex items-center gap-2"
             >
               {processing ? (
-                <>
-                  <span className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />
+                <span role="status" className="inline-flex items-center gap-2">
+                  <span
+                    aria-hidden="true"
+                    className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full"
+                  />
                   Signing & Anchoring...
-                </>
+                </span>
               ) : !connected ? (
                 "Connect Wallet First"
               ) : (

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
+import { ROUTER_FUTURE_FLAGS } from "../../src/routerConfig";
 
 const wallet = vi.hoisted(() => ({ value: {} as Record<string, unknown> }));
 
@@ -15,7 +16,7 @@ const STORAGE_KEY = "geoguard.apiKey";
 
 function renderPage() {
   return render(
-    <MemoryRouter initialEntries={["/settings"]}>
+    <MemoryRouter future={ROUTER_FUTURE_FLAGS} initialEntries={["/settings"]}>
       <SettingsPage />
     </MemoryRouter>,
   );

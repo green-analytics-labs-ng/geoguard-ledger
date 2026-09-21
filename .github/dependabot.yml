@@ -1,0 +1,63 @@
+version: 2
+
+# Supply chain upkeep, so the audits in `ci.yml` are not the only thing that
+# ever notices an outdated or vulnerable dependency. Every manifest in the repo
+# is covered here.
+#
+# Grouping is deliberately split by semver level: patch and minor bumps arrive
+# as one reviewable PR per ecosystem, while a major bump gets its own PR,
+# because that is the one that needs reading before it merges.
+updates:
+  # The backend is a uv project, so this is the `uv` ecosystem rather than
+  # `pip`. uv.lock is committed and is what `uv sync` installs; the `pip`
+  # ecosystem would bump pyproject.toml and leave the lockfile behind, which is
+  # exactly the drift `uv sync --locked` fails on.
+  - package-ecosystem: "uv"
+    directory: "/backend"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      backend-patch-minor:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+
+  - package-ecosystem: "npm"
+    directory: "/frontend"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      frontend-patch-minor:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+
+  # Soroban pins its own toolchain and SDK generation, so contract bumps are the
+  # ones most likely to need a code change alongside them.
+  - package-ecosystem: "cargo"
+    directory: "/contracts/geoguard-ledger"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      contract-patch-minor:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+
+  # The workflows pin actions by major tag, so this is what notices when a
+  # pinned action has a security release.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "chore(ci)"
+    groups:
+      actions:
+        patterns: ["*"]
