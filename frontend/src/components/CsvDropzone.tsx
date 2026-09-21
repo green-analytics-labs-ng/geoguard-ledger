@@ -111,11 +111,18 @@ export default function CsvDropzone({ onFileSelected }: Props) {
           than a child: interactive content inside a button is invalid, and the
           button's click handler opens it. */}
       <div className="relative">
+        {/* Named even though `hidden` keeps it out of the tab order: the name is
+            what a screen reader announces when the picker opens the OS dialog,
+            and an input with no label at all is a violation as soon as the
+            element is exposed (axe reports one in a stylesheet-less test env,
+            where `hidden` has no effect). */}
         <input
           ref={inputRef}
           type="file"
           accept=".csv,.json,.xml"
           className="hidden"
+          aria-label="Choose a data file to upload"
+          aria-describedby={error ? "csv-dropzone-error" : undefined}
           onChange={handleInputChange}
         />
         <button
@@ -124,6 +131,7 @@ export default function CsvDropzone({ onFileSelected }: Props) {
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onClick={() => inputRef.current?.click()}
+          aria-describedby={error ? "csv-dropzone-error" : undefined}
           className={`
             w-full border-2 border-dashed rounded-xl p-12 text-center cursor-pointer
             transition-colors duration-200
@@ -160,8 +168,14 @@ export default function CsvDropzone({ onFileSelected }: Props) {
         </button>
       </div>
 
+      {/* `role="alert"` because the error appears after the user acts on a
+          control that is still focused; a plain div would be silent. */}
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg p-3 text-sm">
+        <div
+          id="csv-dropzone-error"
+          role="alert"
+          className="bg-red-50 border border-red-200 text-red-700 rounded-lg p-3 text-sm"
+        >
           {error}
         </div>
       )}
