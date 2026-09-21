@@ -10,9 +10,11 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from httpx import AsyncClient
 
-from app.services.soroban import check_rpc_connectivity
+from app.config import settings
+from app.services.soroban import TESTNET_NETWORK_PASSPHRASE, check_rpc_connectivity
 
 TEST_ADDRESS = "GABCDEF123456789012345678901234567890123"
+MAINNET_NETWORK_PASSPHRASE = "Public Global Stellar Network ; September 2015"
 
 
 # ── check_rpc_connectivity ────────────────────────────────────────
@@ -74,7 +76,14 @@ async def test_health_reports_connected_when_probe_succeeds(client: AsyncClient)
         response = await client.get("/api/v1/health")
 
     assert response.status_code == 200
-    assert response.json() == {"status": "ok", "soroban_rpc": "connected"}
+    # Pinned exactly, including the passphrase: it is what the frontend compares
+    # a connected wallet against, so losing or renaming it would silently drop
+    # the network-mismatch warning rather than fail here.
+    assert response.json() == {
+        "status": "ok",
+        "soroban_rpc": "connected",
+        "network_passphrase": TESTNET_NETWORK_PASSPHRASE,
+    }
 
 
 @pytest.mark.asyncio
@@ -89,3 +98,18 @@ async def test_health_reports_unreachable_when_probe_fails(client: AsyncClient) 
     body = response.json()
     assert body["status"] == "ok"
     assert body["soroban_rpc"] == "unreachable"
+
+
+@pytest.mark.asyncio
+async def test_health_reports_the_configured_passphrase(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A Mainnet deployment reports Mainnet, not the Testnet default."""
+    monkeypatch.setattr(settings, "soroban_network_passphrase", MAINNET_NETWORK_PASSPHRASE)
+    with patch(
+        "app.api.v1.health.check_rpc_connectivity",
+        new=AsyncMock(return_value=True),
+    ):
+        response = await client.get("/api/v1/health")
+
+    assert response.json()["network_passphrase"] == MAINNET_NETWORK_PASSPHRASE

@@ -187,7 +187,8 @@ rather than assuming connectivity:
 ```json
 {
   "status": "ok",
-  "soroban_rpc": "connected"
+  "soroban_rpc": "connected",
+  "network_passphrase": "Test SDF Network ; September 2015"
 }
 ```
 
@@ -195,6 +196,14 @@ rather than assuming connectivity:
 reports an unhealthy status. The probe timeout is configurable via
 `SOROBAN_RPC_HEALTH_TIMEOUT_SECONDS` (default 3s). `status` describes the API
 itself, so it remains `"ok"` while a dependency is down.
+
+`network_passphrase` is the network transactions are built and verified
+against (`SOROBAN_NETWORK_PASSPHRASE`). The frontend reads it to warn when a
+connected wallet is on a different network: signing for the wrong one produces a
+signature the contract rejects, and the rejection does not say why. It is served
+from the backend rather than configured in the frontend because the transaction
+is built server-side, so this is the only value that decides which signature
+will be accepted.
 
 ## Upload limits
 
