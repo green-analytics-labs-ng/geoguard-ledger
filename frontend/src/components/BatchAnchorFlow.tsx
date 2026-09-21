@@ -227,10 +227,13 @@ export default function BatchAnchorFlow() {
                   className="btn-primary inline-flex items-center gap-2"
                 >
                   {processing ? (
-                    <>
-                      <span className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />
+                    <span role="status" className="inline-flex items-center gap-2">
+                      <span
+                        aria-hidden="true"
+                        className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full"
+                      />
                       Adding...
-                    </>
+                    </span>
                   ) : (
                     "Add to Batch"
                   )}
@@ -283,10 +286,13 @@ export default function BatchAnchorFlow() {
               className="btn-primary inline-flex items-center gap-2"
             >
               {processing ? (
-                <>
-                  <span className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />
+                <span role="status" className="inline-flex items-center gap-2">
+                  <span
+                    aria-hidden="true"
+                    className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full"
+                  />
                   Building Merkle Root...
-                </>
+                </span>
               ) : !connected ? (
                 "Connect Wallet First"
               ) : (
@@ -400,10 +406,13 @@ export default function BatchAnchorFlow() {
               className="btn-primary inline-flex items-center gap-2"
             >
               {processing ? (
-                <>
-                  <span className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />
+                <span role="status" className="inline-flex items-center gap-2">
+                  <span
+                    aria-hidden="true"
+                    className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full"
+                  />
                   Signing & Anchoring...
-                </>
+                </span>
               ) : !connected ? (
                 "Connect Wallet First"
               ) : (
