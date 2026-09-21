@@ -245,7 +245,7 @@ jobs:
         # A job that failed before it wrote a report must not turn a coverage
         # comment into a second failure, so a missing artifact is tolerated.
         continue-on-error: true
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           pattern: "*-coverage"
           path: head-coverage
@@ -276,7 +276,7 @@ jobs:
             --out coverage-comment.md | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Comment on the pull request
-        uses: marocchino/sticky-pull-request-comment@v2
+        uses: marocchino/sticky-pull-request-comment@v3
         with:
           header: coverage
           path: coverage-comment.md
