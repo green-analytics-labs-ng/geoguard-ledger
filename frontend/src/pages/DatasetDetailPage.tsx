@@ -1,40 +1,20 @@
-import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useWallet } from "../context/WalletContext";
-import { getDataset } from "../api/datasets";
+import { usePendingAnchor } from "../hooks/usePendingAnchor";
 import AnomalyBadge from "../components/AnomalyBadge";
 import BatchBadge from "../components/BatchBadge";
 import MerkleProof from "../components/MerkleProof";
 import TxExplorerLink from "../components/TxExplorerLink";
 import { batchMembership } from "../utils/merkle";
-import type { DatasetResponse } from "../types";
 
 export default function DatasetDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { network } = useWallet();
 
-  const [dataset, setDataset] = useState<DatasetResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const fetchDataset = useCallback(async () => {
-    if (!id) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await getDataset(id);
-      setDataset(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load dataset");
-    } finally {
-      setLoading(false);
-    }
-  }, [id]);
-
-  useEffect(() => {
-    fetchDataset();
-  }, [fetchDataset]);
+  // The hook owns the fetch so that a dataset whose anchor has not confirmed
+  // yet is re-checked instead of being frozen at its first `pending` status.
+  const { dataset, loading, error, polling } = usePendingAnchor(id);
 
   if (loading) {
     return (
@@ -106,6 +86,14 @@ export default function DatasetDetailPage() {
                 : "Failed"}
           </span>
         </div>
+
+        {/* Announced rather than silently refreshed: the status just above is
+            about to change on its own. */}
+        {polling && (
+          <p role="status" className="text-xs text-gray-500">
+            Waiting for the anchor to confirm — this page re-checks automatically.
+          </p>
+        )}
 
         <hr className="border-gray-100" />
 
