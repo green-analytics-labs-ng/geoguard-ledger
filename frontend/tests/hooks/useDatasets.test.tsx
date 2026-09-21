@@ -76,6 +76,51 @@ describe("useDatasets", () => {
     expect(api.listDatasets).toHaveBeenCalledTimes(2);
   });
 
+  it("passes an abort signal to the list request", async () => {
+    renderHook(() => useDatasets());
+
+    await waitFor(() => expect(api.listDatasets).toHaveBeenCalled());
+    expect(api.listDatasets).toHaveBeenCalledWith(expect.any(AbortSignal));
+  });
+
+  it("aborts the in-flight request on unmount", async () => {
+    let signal: AbortSignal | undefined;
+    api.listDatasets.mockImplementation((passed?: AbortSignal) => {
+      signal = passed;
+      // Never settles, so the request is still open when the page goes away.
+      return new Promise(() => undefined);
+    });
+
+    const { unmount } = renderHook(() => useDatasets());
+    await waitFor(() => expect(signal).toBeDefined());
+    expect(signal?.aborted).toBe(false);
+
+    unmount();
+
+    expect(signal?.aborted).toBe(true);
+  });
+
+  it("cancels a superseded refresh instead of racing it", async () => {
+    const signals: AbortSignal[] = [];
+    api.listDatasets.mockImplementation((passed?: AbortSignal) => {
+      if (passed) signals.push(passed);
+      if (signals.length === 1) return new Promise(() => undefined);
+      return Promise.resolve({ datasets: [dataset("7")], total: 1 });
+    });
+
+    const { result } = renderHook(() => useDatasets());
+    await act(async () => {
+      await result.current.refresh();
+    });
+
+    expect(signals).toHaveLength(2);
+    // The abandoned first request can no longer resolve into state, and the
+    // hook is not left spinning on it.
+    expect(signals[0].aborted).toBe(true);
+    expect(result.current.loading).toBe(false);
+    expect(result.current.datasets).toEqual([dataset("7")]);
+  });
+
   it("returns a dataset by id", async () => {
     api.getDataset.mockResolvedValue(dataset("42"));
     const { result } = renderHook(() => useDatasets());

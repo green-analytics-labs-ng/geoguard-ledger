@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { listDatasets, getDataset as apiGetDataset } from "../api/datasets";
 import { apiErrorStatus } from "../utils/errors";
 import type { DatasetResponse } from "../types";
@@ -29,22 +29,35 @@ export function useDatasets(): UseDatasetsReturn {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // The request in flight, if any. A refresh replaces it and unmounting aborts
+  // it, so a slow answer can never land on a page that has moved on.
+  const requestRef = useRef<AbortController | null>(null);
+
   const fetchDatasets = useCallback(async () => {
+    requestRef.current?.abort();
+    const controller = new AbortController();
+    requestRef.current = controller;
+
     setLoading(true);
     setError(null);
     try {
-      const data = await listDatasets();
+      const data = await listDatasets(controller.signal);
       setDatasets(data.datasets);
     } catch (err) {
+      // An abort is the caller saying "never mind", not a failure to report.
+      if (controller.signal.aborted) return;
       const message = err instanceof Error ? err.message : "Failed to fetch datasets";
       setError(message);
     } finally {
-      setLoading(false);
+      // Guarded: an aborted request must not clear the spinner of the request
+      // that replaced it.
+      if (!controller.signal.aborted) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    fetchDatasets();
+    void fetchDatasets();
+    return () => requestRef.current?.abort();
   }, [fetchDatasets]);
 
   const getDataset = useCallback(async (id: string): Promise<DatasetLookup> => {

@@ -43,15 +43,25 @@ export async function submitDataset(datasetId: string, signedTransactionXdr: str
   return data;
 }
 
-export async function listDatasets(): Promise<{
+/**
+ * The dataset list, with an optional `AbortSignal`.
+ *
+ * The signal is what lets the list view drop a request whose page has already
+ * unmounted, instead of writing a stale list into state that no longer exists.
+ */
+export async function listDatasets(signal?: AbortSignal): Promise<{
   datasets: DatasetResponse[];
   total: number;
 }> {
-  const { data } = await client.get("/datasets");
+  const { data } = await client.get("/datasets", { signal });
   return data;
 }
 
-export async function getDataset(datasetId: string): Promise<DatasetResponse> {
-  const { data } = await client.get(`/datasets/${datasetId}`);
+/** One dataset. The signal lets a poller cancel a check it no longer needs. */
+export async function getDataset(
+  datasetId: string,
+  signal?: AbortSignal,
+): Promise<DatasetResponse> {
+  const { data } = await client.get(`/datasets/${datasetId}`, { signal });
   return data;
 }
