@@ -93,7 +93,9 @@ export default defineConfig({
   test: {
     globals: true,
     environment: "jsdom",
-    setupFiles: [],
+    // Registers the vitest-axe matchers that the accessibility smoke tests use
+    // (see tests/setup.ts).
+    setupFiles: ["./tests/setup.ts"],
     coverage: {
       // v8 reads the ranges V8 already collects, which needs no source
       // instrumentation and so leaves the tests the same code the app runs.
