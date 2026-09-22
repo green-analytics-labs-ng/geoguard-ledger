@@ -2,10 +2,14 @@
 /**
  * Audit production dependencies, naming the findings we ship with.
  *
- * `npm audit --omit=dev` is a binary: any finding fails the build. Four findings
- * here cannot be closed without a semver-major upgrade that this release is not
- * making, so the plain command leaves CI red on every run — and a gate that is
- * always red gets ignored or deleted within a week.
+ * `npm audit --omit=dev` is a binary: any finding fails the build. The findings
+ * listed below cannot be closed without a semver-major upgrade that this release
+ * is not making, so the plain command leaves CI red on every run — and a gate
+ * that is always red gets ignored or deleted within a week.
+ *
+ * Deliberately no count is stated here: entries are added and removed as
+ * upgrades land, and a number in this paragraph is one more thing to forget to
+ * update. The list below is the count.
  *
  * This runs the same audit and subtracts the advisories listed below, so a new
  * advisory still fails the build while the accepted ones are explicit: each one
@@ -30,25 +34,6 @@ import { execFileSync } from "node:child_process";
  */
 const ACCEPTED = new Map(
   [
-    {
-      id: "GHSA-82x6-q7mm-w9cf",
-      package: "toml",
-      reason:
-        "`toml` only arrives as a transitive dependency of @stellar/stellar-sdk, " +
-        "which uses it in one place: the StellarToml resolver that fetches a " +
-        "domain's /.well-known/stellar.toml. Nothing in this frontend calls that " +
-        "resolver, so no attacker-supplied TOML reaches the parser. npm's fix is " +
-        "@stellar/stellar-sdk 17, a major upgrade with its own Soroban RPC changes.",
-      clearedBy: "the @stellar/stellar-sdk 17 upgrade",
-    },
-    {
-      id: "GHSA-v5mp-jgw5-2x6j",
-      package: "toml",
-      reason:
-        "Prototype pollution in the same toml dependency, and unreachable for the " +
-        "same reason: this frontend never parses a TOML document.",
-      clearedBy: "the @stellar/stellar-sdk 17 upgrade",
-    },
     {
       id: "GHSA-wrjc-x8rr-h8h6",
       package: "react-router",
