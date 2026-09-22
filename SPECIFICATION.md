@@ -1069,7 +1069,7 @@ GitHub Actions workflows enforce quality gates on every PR and push to `main`:
 **`ci.yml`** — Full-stack validation:
 | Job | Commands |
 |-----|----------|
-| **Contract Lint & Build** | `cargo fmt --check`, `cargo clippy -- -D warnings`, `cargo build --target wasm32-unknown-unknown --release` |
+| **Contract Lint & Test** | `cargo audit`, `cargo fmt --check`, `cargo clippy -- -D warnings` (host target), `cargo test` |
 | **Contract Test** | `cargo test` (all unit tests) |
 | **Backend Lint & Typecheck** | `ruff check`, `ruff format --check`, `mypy app/` |
 | **Backend Test** | `uv run pytest` (with coverage report) |
@@ -1079,15 +1079,15 @@ GitHub Actions workflows enforce quality gates on every PR and push to `main`:
 **`contract-test.yml`** — Soroban contract tests and release WASM build:
 | Job | Commands |
 |-----|----------|
-| **Build WASM** | `cargo build --target wasm32-unknown-unknown --release` |
+| **Build WASM** | `stellar contract build` (stellar CLI v25.2.0+, target `wasm32v1-none`) |
 | **Run Unit Tests** | `cargo test` |
 | **Check WASM size** | `wc -c` on the release WASM (warns above 64 KB) |
 
 **`deploy-testnet.yml`** — Manual Testnet deployment (`workflow_dispatch`):
 | Step | Commands |
 |-----|----------|
-| **Gate** | `cargo fmt --check`, `cargo clippy -D warnings`, `cargo test` |
-| **Build** | `cargo build --target wasm32-unknown-unknown --release` |
+| **Gate** | `cargo fmt --check`, `cargo clippy -D warnings` (host target), `cargo test` |
+| **Build** | `stellar contract build` |
 | **Deploy** | `scripts/deploy_contract.sh` against `testnet` |
 | **Smoke test** | `python -m tests.smoke_testnet` against the new contract ID |
 
@@ -1101,7 +1101,7 @@ actually answered — not merely that a WASM upload succeeded.
 |-----|----------|
 | **Version guard** | tag must equal the version in `Cargo.toml`, `pyproject.toml`, and `package.json` |
 | **Test** | `cargo test` |
-| **Build** | `cargo build --target wasm32-unknown-unknown --release` |
+| **Build** | `stellar contract build` |
 | **Publish** | attaches `geoguard_ledger.wasm` and its `sha256sum` file to the release |
 
 ### 9.2 Quality Gates
@@ -1206,7 +1206,7 @@ dataset and is told it is not on-chain.
 This script:
 1. Creates a Python virtual environment and installs dependencies via `uv sync`.
 2. Installs Node.js dependencies via `npm install`.
-3. Builds the Soroban contract to WASM (`cargo build --target wasm32-unknown-unknown --release`).
+3. Builds the Soroban contract to WASM (`stellar contract build`).
 4. Starts PostgreSQL via Docker Compose.
 5. Runs database migrations (`uv run alembic upgrade head`).
 

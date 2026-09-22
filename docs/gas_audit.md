@@ -8,6 +8,17 @@ Every figure below was measured on the Soroban test host from a clean harness
 that mirrors the corresponding test in `src/test_gas.rs`. They reproduce
 exactly, run to run. See [Reproducing](#reproducing).
 
+> **Reading this after the soroban-sdk 22 → 28 upgrade.** sdk 28 ships a new
+> soroban-env-host, and the host is what meters instructions and bytes here. The
+> upgrade changed the *meter*, not the contract, and it changed it a lot: the
+> same one-leaf verification went from 3,624 memory bytes to 30,400, and
+> `anchor_hash` from 105,137 to 148,502 CPU, with no line of the measured code
+> touched. So the absolute figures in sections 1, 2 and 3 are **pre-28
+> measurements** and are not comparable to the re-based ceilings in section 4 —
+> a diff between the two reads as a regression that never happened. Section 2's
+> before/after deltas survive as *ratios*, because both sides of that comparison
+> were taken on the same host.
+
 ## Result summary
 
 | Lever | Outcome |
@@ -16,7 +27,7 @@ exactly, run to run. See [Reproducing](#reproducing).
 | `overflow-checks` | Tested turning it **off**: **0 bytes saved**. Kept **on** for its safety value. |
 | Hash helper allocation | Fixed-size arrays instead of `Bytes`: **−29.4% CPU / −45.0% memory** on a depth-10 inclusion proof. |
 | Proof-length bound | Rejecting an over-long proof costs the same at 33 and 1,000 siblings — **O(1), not O(length)**. |
-| WASM artifact | **11,942 bytes**, 18% of the 64 KB CI threshold. |
+| WASM artifact | **12,637 bytes**, 19% of the 64 KB CI threshold. |
 
 ## 1. Release profile — no change
 
@@ -108,16 +119,21 @@ loop fails loudly instead of quietly getting slower.
 ## 4. Regression ceilings
 
 `src/test_gas.rs` asserts CPU ceilings with ~25% headroom: wide enough to absorb
-an ordinary refactor or an SDK patch, narrow enough that a change making
-verification scale with the batch cannot pass.
+an ordinary refactor, narrow enough that a change making verification scale with
+the batch cannot pass.
+
+The headroom is *not* sized to absorb an SDK upgrade, and the 22 → 28 bump is the
+proof: it moved every one of these by 40% or more without changing a line of the
+contract. When the host changes, the ceilings are re-based deliberately — which
+is what the numbers below are — rather than relied on to be slack enough.
 
 | Operation | Measured | Ceiling | Headroom |
 |---|---|---|---|
-| `verify_inclusion`, 1 leaf | 31,193 | 40,000 | +28% |
-| `verify_inclusion`, 1,024 leaves | 131,083 | 165,000 | +26% |
-| rejected over-long proof | 23,006 | 30,000 | +30% |
-| `anchor_hash` | 105,137 | 130,000 | +24% |
-| `anchor_root` | 113,796 | 140,000 | +23% |
+| `verify_inclusion`, 1 leaf | 47,826 | 60,000 | +25% |
+| `verify_inclusion`, 1,024 leaves | 146,646 | 185,000 | +26% |
+| rejected over-long proof | 39,746 | 50,000 | +26% |
+| `anchor_hash` | 148,502 | 185,000 | +25% |
+| `anchor_root` | 160,694 | 200,000 | +24% |
 
 Only CPU is asserted. Memory is reported in the failure messages but not
 guarded: it is the noisier of the two and the CPU figure already moves with the
@@ -135,13 +151,28 @@ let budget = env.cost_estimate().budget();
 ## 5. WASM size
 
 ```
-target/wasm32-unknown-unknown/release/geoguard_ledger.wasm   11,942 bytes
+target/wasm32v1-none/release/geoguard_ledger.wasm   12,637 bytes
 ```
 
-CI (`contract-test.yml`) warns above 65,536 bytes, so there is 53 KB of headroom
-and no size pressure to trade against. `stellar contract build --optimize` adds
-a `wasm-opt` pass for deployments that want a further reduction; CI does not run
-it, so the size above is the plain release build — the same artifact CI checks.
+12,637 is the *optimized* size, down from 14,076 before the `wasm-opt` pass. CI
+(`contract-test.yml`) warns above 65,536 bytes, so there is 53 KB of headroom and
+no size pressure to trade against.
+
+The build path changed with the upgrade, and this is the part worth knowing:
+there is no longer a plain `cargo build` artifact to compare against. Since sdk
+28 the contract can only be built by `stellar contract build`, which refuses to
+run without the build system declaring that it shakes the contract spec, and
+which runs `wasm-opt` itself — the old `--optimize` flag is now the default. So
+the size CI checks is the optimized one, while the sdk 22 figure of 11,942 was a
+*plain* release build. The like-for-like comparison is therefore 11,942 on sdk 22
+against 14,076 on sdk 28 before optimization, or against 12,637 after it.
+
+That leaves about 700 bytes of real growth to account for, and the events do:
+moving off the deprecated `env.events().publish` onto `#[contractevent]` puts
+both events in the contract spec, where a consumer can discover them, and a spec
+entry costs bytes. Paying ~700 bytes of a 65 KB budget for events that are
+described rather than merely emitted is not a trade worth agonizing over, but it
+is the reason this figure is not lower.
 
 ## Limits of these numbers
 
@@ -173,11 +204,14 @@ cd contracts/geoguard-ledger
 cargo test test_gas -- --nocapture
 
 # WASM artifact size (the same artifact CI measures).
-cargo build --target wasm32-unknown-unknown --release
-wc -c target/wasm32-unknown-unknown/release/geoguard_ledger.wasm
+stellar contract build
+wc -c target/wasm32v1-none/release/geoguard_ledger.wasm
 ```
 
 To re-derive the baselines rather than assert them, add a temporary test in the
-style of the ones above that reports the budget instead of comparing it. Because
-the crate is `#![no_std]`, that test must report through `panic!("{:?}", ...)` —
-there is no `format!` or `String` available.
+style of the ones above that reports the budget instead of comparing it. The
+crate is `#![no_std]`, so the ordinary `println!` macro is not in scope; a test
+module can pull it in with `extern crate std;` at the top of the file and then
+use `std::println!(...)`, which is how the current figures were taken, or fall
+back to `panic!("{:?}", ...)` if that is unwanted. Either way, run it under
+`cargo test -- --nocapture` or the output is swallowed.

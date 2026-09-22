@@ -142,7 +142,8 @@ flowchart TB
 | Tool | Minimum Version | Purpose |
 | :--- | :------------: | :------ |
 | [Docker](https://docs.docker.com/get-docker/) | 24+ | Containerized PostgreSQL, backend, and frontend services |
-| [Rust](https://rustup.rs/) | 1.70+ | Soroban smart contract compilation |
+| [Rust](https://rustup.rs/) | 1.91+ | Soroban smart contract compilation (soroban-sdk 28's MSRV), plus the `wasm32v1-none` target |
+| [Stellar CLI](https://developers.stellar.org/docs/tools/stellar-cli) | 25.2.0+ | Builds the contract; deploys and invokes it |
 | [Python](https://www.python.org/downloads/) | 3.11+ | Backend API and AI model inference |
 | [Node.js](https://nodejs.org/) | 18+ | React frontend development |
 | [Freighter Wallet](https://www.freighter.app/) | Latest | Stellar browser extension for transaction signing |
@@ -204,15 +205,16 @@ uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```bash
 cd contracts/geoguard-ledger
 
-# Build the contract
-cargo build --target wasm32-unknown-unknown --release
+# Build the contract. Needs the stellar CLI, v25.2.0+ — since soroban-sdk 28
+# there is no cargo build path for wasm.
+stellar contract build
 
 # Run contract unit tests
 cargo test --verbose
 
 # Lint
 cargo fmt --all -- --check
-cargo clippy --target wasm32-unknown-unknown -- -D warnings
+cargo clippy -- -D warnings
 ```
 
 </details>
@@ -256,7 +258,7 @@ rather than something that happens on merge. From a local checkout:
 
 ```bash
 cd contracts/geoguard-ledger
-cargo build --target wasm32-unknown-unknown --release
+stellar contract build
 cd ../..
 DEPLOYER_SECRET=S... ./scripts/deploy_contract.sh --admin G... --write-env
 ```

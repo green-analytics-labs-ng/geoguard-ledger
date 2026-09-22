@@ -2,10 +2,18 @@
 /**
  * Audit production dependencies, naming the findings we ship with.
  *
- * `npm audit --omit=dev` is a binary: any finding fails the build. Four findings
- * here cannot be closed without a semver-major upgrade that this release is not
- * making, so the plain command leaves CI red on every run — and a gate that is
- * always red gets ignored or deleted within a week.
+ * `npm audit --omit=dev` is a binary: any finding fails the build. Every finding
+ * that used to sit below was closed by a semver-major upgrade this release
+ * makes, so the accepted list is now empty and the gate enforces that directly.
+ *
+ * The list stays rather than being deleted along with its last entry: when an
+ * upgrade cannot land, recording its advisory here with the reason it is not
+ * reachable is what keeps the gate meaningful — a gate that is always red gets
+ * ignored or deleted within a week.
+ *
+ * Deliberately no count is stated here: entries are added and removed as
+ * upgrades land, and a number in this paragraph is one more thing to forget to
+ * update. The list below is the count.
  *
  * This runs the same audit and subtracts the advisories listed below, so a new
  * advisory still fails the build while the accepted ones are explicit: each one
@@ -24,53 +32,19 @@ import { execFileSync } from "node:child_process";
 /**
  * Advisories this release ships with, keyed by GitHub advisory id.
  *
+ * Empty on purpose, and provably so: the four findings this release shipped with
+ * — two react-router 6 ones and two reaching `toml` through
+ * @stellar/stellar-sdk 16 — are all cleared by the semver-major upgrades it
+ * makes, and each was deleted with the upgrade that cleared it. That is the
+ * whole lifecycle: an entry exists only while its upgrade is still blocked.
+ *
  * `clearedBy` is deliberately a concrete change, not "a future upgrade": when
  * that change lands, this entry is deleted and the gate goes back to enforcing
- * an empty list.
+ * an empty list, which is the state below.
+ *
+ * @type {Map<string, { id: string, package: string, reason: string, clearedBy: string }>}
  */
-const ACCEPTED = new Map(
-  [
-    {
-      id: "GHSA-82x6-q7mm-w9cf",
-      package: "toml",
-      reason:
-        "`toml` only arrives as a transitive dependency of @stellar/stellar-sdk, " +
-        "which uses it in one place: the StellarToml resolver that fetches a " +
-        "domain's /.well-known/stellar.toml. Nothing in this frontend calls that " +
-        "resolver, so no attacker-supplied TOML reaches the parser. npm's fix is " +
-        "@stellar/stellar-sdk 17, a major upgrade with its own Soroban RPC changes.",
-      clearedBy: "the @stellar/stellar-sdk 17 upgrade",
-    },
-    {
-      id: "GHSA-v5mp-jgw5-2x6j",
-      package: "toml",
-      reason:
-        "Prototype pollution in the same toml dependency, and unreachable for the " +
-        "same reason: this frontend never parses a TOML document.",
-      clearedBy: "the @stellar/stellar-sdk 17 upgrade",
-    },
-    {
-      id: "GHSA-wrjc-x8rr-h8h6",
-      package: "react-router",
-      reason:
-        "An open redirect in <Link> and useNavigate when the destination comes " +
-        "from user input. Every `to` in this app is either a literal route or " +
-        "built from a dataset id we fetched from our own API, so there is no " +
-        "attacker-controlled destination to redirect to. There is no fix in the " +
-        "6.x line; react-router-dom 7.18.4 is the patched release.",
-      clearedBy: "the react-router-dom 7 upgrade",
-    },
-    {
-      id: "GHSA-337j-9hxr-rhxg",
-      package: "react-router",
-      reason:
-        "Constructor injection through deserializeErrors() during SSR " +
-        "hydration. This is a client-only application — there is no server " +
-        "renderer and no hydration path to reach it through.",
-      clearedBy: "the react-router-dom 7 upgrade",
-    },
-  ].map((advisory) => [advisory.id, advisory]),
-);
+const ACCEPTED = new Map();
 
 const npm = process.platform === "win32" ? "npm.cmd" : "npm";
 
@@ -170,4 +144,10 @@ if (unaccepted.length > 0) {
   process.exit(1);
 }
 
-console.log(`\n✅ ${found.size} advisory(ies) in production dependencies, all accepted.`);
+// The empty list above is the normal case now, so say so plainly rather than
+// reporting a count of zero.
+console.log(
+  found.size === 0
+    ? "\n✅ No advisories in production dependencies."
+    : `\n✅ ${found.size} advisory(ies) in production dependencies, all accepted.`,
+);

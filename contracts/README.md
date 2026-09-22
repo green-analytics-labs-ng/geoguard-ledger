@@ -3,21 +3,33 @@
 ## Build
 
 ```bash
-cargo build --target wasm32-unknown-unknown --release
+stellar contract build
 ```
+
+There is no `cargo` build path, and that is the SDK's decision rather than a
+preference here: since soroban-sdk 28, a build targeting wasm fails unless the
+build system sets `SOROBAN_SDK_BUILD_SYSTEM_SUPPORTS_SPEC_SHAKING_V2`, because
+spec shaking is always on and a contract's spec is only correct once the build
+system has shaken it. Only the CLI sets that flag. Install it with
+`curl -fsSL https://github.com/stellar/stellar-cli/raw/main/install.sh | sh`
+(v25.2.0 or newer).
+
+The target is `wasm32v1-none`, not `wasm32-unknown-unknown`: from Rust 1.82 the
+latter enables reference-types and multi-value, which the Soroban environment
+does not support.
 
 ## Optimize
 
-The release profile in `Cargo.toml` already sets `opt-level = "z"`, `lto`, and
-`strip`, which is what CI and the release workflow build with. To run the
-`wasm-opt` pass on top of that:
+The release profile in `Cargo.toml` sets `opt-level = "z"`, `lto` and `strip`,
+and `stellar contract build` runs the `wasm-opt` pass on top of that — the old
+`--optimize` flag is the default now. It writes:
 
-```bash
-stellar contract build --optimize
+```
+target/wasm32v1-none/release/geoguard_ledger.wasm
 ```
 
-That writes to `target/wasm32v1-none/release/geoguard_ledger.wasm`, not the
-`wasm32-unknown-unknown` path used above — pass `--wasm` if you deploy it.
+[`docs/gas_audit.md`](../docs/gas_audit.md) records the measured size and how it
+compares with the pre-28 build.
 
 ## Test
 
@@ -29,8 +41,11 @@ cargo test --verbose
 
 ```bash
 cargo fmt --all -- --check
-cargo clippy --target wasm32-unknown-unknown -- -D warnings
+cargo clippy -- -D warnings
 ```
+
+Clippy runs on the host target. A wasm lint would need the CLI's spec-shaking for
+no benefit, and the wasm build is verified by `stellar contract build` above.
 
 ## Security & Cost
 
@@ -69,7 +84,7 @@ Or with the CLI directly:
 
 ```bash
 stellar contract deploy \
-  --wasm target/wasm32-unknown-unknown/release/geoguard_ledger.wasm \
+  --wasm target/wasm32v1-none/release/geoguard_ledger.wasm \
   --source-account <secret_key> \
   --network testnet
 ```
