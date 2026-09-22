@@ -115,7 +115,7 @@ def _extract_features(df: pd.DataFrame) -> pd.DataFrame:
     return features
 
 
-def _flag_via_iqr(scores: np.ndarray, multiplier: float = _IQR_MULTIPLIER) -> np.ndarray:  # type: ignore[type-arg]
+def _flag_via_iqr(scores: np.ndarray, multiplier: float = _IQR_MULTIPLIER) -> np.ndarray:
     """Return a boolean mask flagging scores below the IQR lower fence.
 
     The IQR (Tukey) method is robust to the score distribution — it only
@@ -245,7 +245,7 @@ def run_anomaly_detection(
     model.fit(features.values)
 
     # Score each row. decision_function: higher = normal, lower = anomalous.
-    raw_scores: np.ndarray = model.decision_function(features.values)  # type: ignore[type-arg]
+    raw_scores: np.ndarray = model.decision_function(features.values)
 
     # Flag row indices using the IQR method
     flagged_mask = _flag_via_iqr(raw_scores)
