@@ -54,7 +54,7 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: wasm32-unknown-unknown
+          targets: wasm32v1-none
 
       - name: Cache Cargo registry
         uses: actions/cache@v6
@@ -65,19 +65,9 @@ jobs:
             contracts/geoguard-ledger/target
           key: ${{ runner.os }}-cargo-deploy-${{ hashFiles('contracts/geoguard-ledger/Cargo.lock') }}
 
-      # The deploy artifact is built here rather than reused from CI, so this
-      # job re-runs the same gates before publishing anything to the network.
-      - name: Lint and test the contract
-        working-directory: contracts/geoguard-ledger
-        run: |
-          cargo fmt --all -- --check
-          cargo clippy --target wasm32-unknown-unknown -- -D warnings
-          cargo test --verbose
-
-      - name: Build release WASM
-        working-directory: contracts/geoguard-ledger
-        run: cargo build --target wasm32-unknown-unknown --release
-
+      # Installed before the build rather than after it, because it *is* the
+      # build system: sdk 28 refuses to compile for a wasm target unless the
+      # build system sets the spec-shaking flag that only this CLI sets.
       - name: Install stellar CLI ${{ env.STELLAR_CLI_VERSION }}
         run: |
           set -euo pipefail
@@ -91,6 +81,21 @@ jobs:
           test -n "$BIN"
           sudo install -m 0755 "$BIN" /usr/local/bin/stellar
           stellar --version
+
+      # The deploy artifact is built here rather than reused from CI, so this
+      # job re-runs the same gates before publishing anything to the network.
+      # Clippy lints the host target: a wasm lint would need the CLI's
+      # spec-shaking for no benefit, since nothing here consumes that artifact.
+      - name: Lint and test the contract
+        working-directory: contracts/geoguard-ledger
+        run: |
+          cargo fmt --all -- --check
+          cargo clippy -- -D warnings
+          cargo test --verbose
+
+      - name: Build release WASM
+        working-directory: contracts/geoguard-ledger
+        run: stellar contract build
 
       # Fail here with a clear message rather than deep inside the CLI's error
       # output, which is what an unset secret otherwise looks like.

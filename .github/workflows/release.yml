@@ -17,6 +17,8 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
+  # The contract's build system, not just its deployer: see contract-test.yml.
+  STELLAR_CLI_VERSION: "28.0.0"
 
 jobs:
   release:
@@ -51,7 +53,7 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: wasm32-unknown-unknown
+          targets: wasm32v1-none
 
       - name: Cache Cargo registry
         uses: actions/cache@v6
@@ -66,15 +68,32 @@ jobs:
         working-directory: contracts/geoguard-ledger
         run: cargo test --verbose
 
+      - name: Install stellar CLI ${{ env.STELLAR_CLI_VERSION }}
+        run: |
+          set -euo pipefail
+          URL="https://github.com/stellar/stellar-cli/releases/download/v${STELLAR_CLI_VERSION}/stellar-cli-${STELLAR_CLI_VERSION}-x86_64-unknown-linux-gnu.tar.gz"
+          curl -fsSL -o "$RUNNER_TEMP/stellar-cli.tar.gz" "$URL"
+          mkdir -p "$RUNNER_TEMP/stellar-cli"
+          tar -xzf "$RUNNER_TEMP/stellar-cli.tar.gz" -C "$RUNNER_TEMP/stellar-cli"
+          # -print -quit avoids `| head -n1`, which under `pipefail` can fail
+          # the step with SIGPIPE (exit 141) instead of succeeding.
+          BIN=$(find "$RUNNER_TEMP/stellar-cli" -type f -name stellar -print -quit)
+          test -n "$BIN"
+          sudo install -m 0755 "$BIN" /usr/local/bin/stellar
+          stellar --version
+
+      # Released artifacts come from the CLI so they are shaken and optimized
+      # the same way a deployment's are — the CLI both sets the spec-shaking flag
+      # sdk 28 requires and runs the wasm-opt pass.
       - name: Build release WASM
         working-directory: contracts/geoguard-ledger
-        run: cargo build --target wasm32-unknown-unknown --release
+        run: stellar contract build
 
       - name: Package the WASM
         working-directory: contracts/geoguard-ledger
         run: |
           set -euo pipefail
-          SRC=target/wasm32-unknown-unknown/release/geoguard_ledger.wasm
+          SRC=target/wasm32v1-none/release/geoguard_ledger.wasm
           OUT="$RUNNER_TEMP/release"
           mkdir -p "$OUT"
           cp "$SRC" "$OUT/geoguard_ledger.wasm"

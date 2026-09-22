@@ -21,14 +21,19 @@ key.
 
 | Tool | Why |
 |---|---|
-| Rust + the `wasm32-unknown-unknown` target | Builds the contract |
-| `stellar` CLI v21+ | Deploys and invokes |
+| Rust + the `wasm32v1-none` target | Builds the contract |
+| `stellar` CLI v25.2.0+ | Builds, deploys and invokes |
 | A funded Testnet account | Pays for the deployment and its transactions |
 
 ```bash
-rustup target add wasm32-unknown-unknown
+rustup target add wasm32v1-none
 curl -fsSL https://github.com/stellar/stellar-cli/raw/main/install.sh | sh
 ```
+
+The CLI floor is set by the *build*, not the deploy: soroban-sdk 28 refuses to
+compile for a wasm target unless the build system declares that it shakes the
+contract spec, and only v25.2.0+ does. The target is `wasm32v1-none` because
+`wasm32-unknown-unknown` has been unusable for Soroban since Rust 1.82.
 
 Fund a Testnet account with [Friendbot](https://laboratory.stellar.org/#account-creator?network=testnet),
 either for a key you generate (`stellar keys generate deployer --network testnet --fund`)
@@ -38,7 +43,7 @@ or for an address you already hold.
 
 ```bash
 cd contracts/geoguard-ledger
-cargo build --target wasm32-unknown-unknown --release
+stellar contract build
 cd ../..
 
 DEPLOYER_SECRET=S... ./scripts/deploy_contract.sh --admin G... --write-env
@@ -51,7 +56,7 @@ DEPLOYER_SECRET=S... ./scripts/deploy_contract.sh --admin G... --write-env
 | `--write-env` | Write `CONTRACT_ID` into `backend/.env`. |
 | `--contract-id-out FILE` | Write the new contract ID to `FILE` (used by CI to hand the ID to the smoke test). |
 | `--network NAME` | Deploy somewhere other than Testnet. |
-| `--wasm PATH` | Deploy a specific WASM file (e.g. one built by `stellar contract build --optimize`, which writes to `target/wasm32v1-none/release/`). |
+| `--wasm PATH` | Deploy a specific WASM file. The default is the `stellar contract build` output at `target/wasm32v1-none/release/`. |
 
 The script reports the contract ID as soon as the deploy succeeds, and writes
 `--contract-id-out` *before* initializing, so a failed `initialize` still leaves

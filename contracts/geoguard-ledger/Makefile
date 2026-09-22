@@ -1,12 +1,17 @@
 .PHONY: build test lint clean deploy-testnet invoke-anchor invoke-verify
 
-# Same target and path as the repository's CI and deploy workflows. Building
-# with `stellar contract build --optimize` instead writes to
-# target/wasm32v1-none/release/, so change this if you switch.
-WASM := target/wasm32-unknown-unknown/release/geoguard_ledger.wasm
+# Same path as the repository's CI, release and deploy workflows.
+#
+# `stellar contract build` rather than `cargo build`, and not by preference:
+# soroban-sdk 28's build script refuses to compile for any wasm target unless the
+# build system sets SOROBAN_SDK_BUILD_SYSTEM_SUPPORTS_SPEC_SHAKING_V2, which only
+# the CLI does. It will not emit a contract whose spec has not been shaken. So
+# the target moved from wasm32-unknown-unknown (unsupported since Rust 1.82
+# anyway) to wasm32v1-none, and the build command moved with it.
+WASM := target/wasm32v1-none/release/geoguard_ledger.wasm
 
 build:
-	cargo build --target wasm32-unknown-unknown --release
+	stellar contract build
 	@echo "WASM built: $(WASM)"
 
 test:
@@ -14,7 +19,7 @@ test:
 
 lint:
 	cargo fmt --all -- --check
-	cargo clippy --target wasm32-unknown-unknown -- -D warnings
+	cargo clippy -- -D warnings
 
 clean:
 	cargo clean
