@@ -12,6 +12,22 @@ before it are no longer reproducible. Those entries say so explicitly.
 
 ## [Unreleased]
 
+### Changed
+
+- Dependency refresh across all three manifests: soroban-sdk 22→28, numpy 1→2,
+  stellar-sdk 15→16 (backend) and 13→17 (frontend), react-router-dom 6→7,
+  vitest 3→5, eslint 8→9 with a flat config, plus the routine patch/minor
+  groups. React is deliberately held at 19.2: 19.3 adds 29.4 kB to the entry
+  chunk, past the budget in `frontend/vite.config.ts`, and clears no advisory.
+- **Building the contract now requires the Stellar CLI and Rust 1.91+.**
+  soroban-sdk 28 refuses to emit a wasm artifact unless the build system shakes
+  the contract spec, which only `stellar contract build` does; a plain
+  `cargo build` for a wasm target is rejected outright. The published wasm is
+  unchanged in behaviour — the event wire format is byte-identical — and the gas
+  ceilings have been re-baselined against the new host's metering, which counts
+  memory differently (3,624 → 30,400 bytes for the same 1-leaf verification).
+  See [contracts/README.md](contracts/README.md) and [docs/gas_audit.md](docs/gas_audit.md).
+
 ## [0.3.0] - 2026-09-19
 
 ### ⚠️ Breaking changes

@@ -20,10 +20,13 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # No wasm target here. Since sdk 28 the only supported way to produce this
+      # contract's WASM is `stellar contract build`, which `contract-test.yml`
+      # owns; a bare `cargo build --target wasm32v1-none` is refused outright.
+      # Nothing in this job needs a wasm artifact — it audits, formats, lints and
+      # tests — so it installs no target.
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: wasm32-unknown-unknown
 
       - name: Cache Cargo registry
         uses: actions/cache@v6
@@ -46,8 +49,15 @@ jobs:
       - name: Check formatting
         run: cargo fmt --all -- --check
 
+      # Linted on the host target rather than wasm. sdk 28 refuses to build for
+      # any wasm target unless the build system sets
+      # SOROBAN_SDK_BUILD_SYSTEM_SUPPORTS_SPEC_SHAKING_V2, which only
+      # `stellar contract build` does — it will not emit a contract whose spec
+      # has not been shaken. Linting does not need that artifact, and this way
+      # the lint keeps working without adopting the CLI in a job that builds
+      # nothing.
       - name: Lint with Clippy
-        run: cargo clippy --target wasm32-unknown-unknown -- -D warnings
+        run: cargo clippy -- -D warnings
 
       - name: Run tests
         run: cargo test --verbose
@@ -245,7 +255,7 @@ jobs:
         # A job that failed before it wrote a report must not turn a coverage
         # comment into a second failure, so a missing artifact is tolerated.
         continue-on-error: true
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           pattern: "*-coverage"
           path: head-coverage
@@ -276,7 +286,7 @@ jobs:
             --out coverage-comment.md | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Comment on the pull request
-        uses: marocchino/sticky-pull-request-comment@v2
+        uses: marocchino/sticky-pull-request-comment@v3
         with:
           header: coverage
           path: coverage-comment.md

@@ -13,8 +13,17 @@ import react from "@vitejs/plugin-react";
  * headroom, so crossing it means a dependency crept into the entry — lazy-load
  * it or drop it. If the budget genuinely has to move, move it here and say why
  * in the commit rather than deleting the check.
+ *
+ * Moved from 250_000 to 270_000 with react-router-dom 7, which is where the
+ * budget went: the router is part of the shell by definition and cannot be
+ * lazy-loaded, and v7 measures 254.04 kB against 238.18 kB on v6 — it now ships
+ * the data-router machinery alongside the declarative API this app uses. The
+ * alternative was staying on 6.x, which has no patched release for the
+ * open-redirect in GHSA-wrjc-x8rr-h8h6. Kept to the same ~6% headroom over the
+ * measured size as before, so a dependency that creeps into the entry still
+ * trips it.
  */
-const MAIN_CHUNK_BUDGET_BYTES = 250_000;
+const MAIN_CHUNK_BUDGET_BYTES = 270_000;
 
 /**
  * UTF-8 byte length, so the budget counts what the browser downloads.
