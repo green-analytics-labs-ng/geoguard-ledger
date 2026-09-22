@@ -11,6 +11,7 @@ from tests.conftest import (
     SAMPLE_HASH,
     SAMPLE_JSON,
     TestSessionLocal,
+    analyze,
     analyze_and_anchor,
 )
 
@@ -95,6 +96,63 @@ async def test_verify_by_file(
     data = response.json()
     assert data["re_computed_hash"] is not None
     assert len(data["re_computed_hash"]) == 64  # SHA-256 hex
+
+
+# ── POST /api/v1/verify — the inputs are alternatives, not filters ─
+
+
+@pytest.mark.asyncio
+async def test_verify_prefers_an_uploaded_file_over_an_explicit_hash(
+    client: AsyncClient,
+    mock_verify_on_chain_not_found,
+):
+    """An upload re-computes the hash from its own bytes, so it beats a hash param.
+
+    Combining the inputs is not rejected, and the precedence is documented on the
+    endpoint, so this pins what that documentation claims.
+    """
+    created = await analyze(client)
+
+    response = await client.post(
+        "/api/v1/verify",
+        params={"dataset_hash": "a" * 64},
+        files={"file": ("test.csv", SAMPLE_CSV, "text/csv")},
+    )
+
+    assert response.status_code == 200
+    # The uploaded file's hash, not the one passed alongside it.
+    assert response.json()["re_computed_hash"] == created["dataset_hash"]
+
+
+@pytest.mark.asyncio
+async def test_verify_prefers_an_explicit_hash_over_a_dataset_id(
+    client: AsyncClient,
+    mock_verify_on_chain_not_found,
+):
+    """A hash identifies the dataset itself, so a ``dataset_id`` sent with it is ignored.
+
+    The response has to describe the hash's dataset: answering about the id the
+    caller named instead would report on a different dataset than the one that
+    was actually verified.
+    """
+    by_csv = await analyze(client)
+    by_json = await analyze(
+        client,
+        content=SAMPLE_JSON,
+        filename="test.json",
+        content_type="application/json",
+    )
+
+    response = await client.post(
+        "/api/v1/verify",
+        params={
+            "dataset_hash": by_csv["dataset_hash"],
+            "dataset_id": by_json["dataset_id"],
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["local_record"]["dataset_id"] == by_csv["dataset_id"]
 
 
 # ── POST /api/v1/verify — idempotent hash ─────────────────────────

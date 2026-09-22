@@ -71,6 +71,12 @@ async def verify_dataset(
     2. Provide a ``dataset_id`` to look up the hash from the database.
     3. Upload a CSV, JSON or XML file to re-compute the hash and verify.
 
+    Send one of the three. They are alternatives rather than filters, and the
+    inputs are not combined: an uploaded file takes priority over
+    ``dataset_hash``, which takes priority over ``dataset_id``. Passing more than
+    one therefore means the others are silently ignored — and the response can
+    describe a different dataset than ``dataset_id`` names.
+
     When the dataset was anchored as part of a Merkle batch, the response also
     carries an ``inclusion`` block with the proof needed to verify it against
     the anchored root.
