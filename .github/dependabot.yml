@@ -35,6 +35,33 @@ updates:
       frontend-patch-minor:
         patterns: ["*"]
         update-types: ["minor", "patch"]
+    ignore:
+      # eslint 10 is blocked upstream, not here: eslint-plugin-jsx-a11y, whose
+      # current release still peers `eslint@^3 || ... || ^9`, is the last plugin
+      # in this tree that has not opened up to ^10. A tree containing eslint 10
+      # therefore cannot resolve at all, so `npm ci` fails before a single check
+      # runs and the pull request spends every week red for a reason no commit
+      # can fix. Delete this entry once jsx-a11y accepts ^10.
+      #
+      # Only major 10 is held back — eslint 9.x still reaches the group above.
+      - dependency-name: "eslint"
+        versions: [">=10"]
+
+      # React 19.3 adds 29.4 kB to the entry chunk — the same order as the whole
+      # react-router major, for a minor with no advisory behind it — which takes
+      # first paint past the entry budget in vite.config.ts on its own. The
+      # runtime and the type packages move together, because types newer than
+      # the installed runtime would let a 19.3-only API type-check. Remove these
+      # four once the budget can absorb the growth, which means deciding where
+      # that 29 kB is worth spending.
+      - dependency-name: "react"
+        versions: [">=19.3"]
+      - dependency-name: "react-dom"
+        versions: [">=19.3"]
+      - dependency-name: "@types/react"
+        versions: [">=19.3"]
+      - dependency-name: "@types/react-dom"
+        versions: [">=19.3"]
 
   # Soroban pins its own toolchain and SDK generation, so contract bumps are the
   # ones most likely to need a code change alongside them.
