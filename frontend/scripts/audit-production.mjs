@@ -2,7 +2,7 @@
 /**
  * Audit production dependencies, naming the findings we ship with.
  *
- * `npm audit --omit=dev` is a binary: any finding fails the build. Four findings
+ * `npm audit --omit=dev` is a binary: any finding fails the build. Two findings
  * here cannot be closed without a semver-major upgrade that this release is not
  * making, so the plain command leaves CI red on every run — and a gate that is
  * always red gets ignored or deleted within a week.
@@ -48,26 +48,6 @@ const ACCEPTED = new Map(
         "Prototype pollution in the same toml dependency, and unreachable for the " +
         "same reason: this frontend never parses a TOML document.",
       clearedBy: "the @stellar/stellar-sdk 17 upgrade",
-    },
-    {
-      id: "GHSA-wrjc-x8rr-h8h6",
-      package: "react-router",
-      reason:
-        "An open redirect in <Link> and useNavigate when the destination comes " +
-        "from user input. Every `to` in this app is either a literal route or " +
-        "built from a dataset id we fetched from our own API, so there is no " +
-        "attacker-controlled destination to redirect to. There is no fix in the " +
-        "6.x line; react-router-dom 7.18.4 is the patched release.",
-      clearedBy: "the react-router-dom 7 upgrade",
-    },
-    {
-      id: "GHSA-337j-9hxr-rhxg",
-      package: "react-router",
-      reason:
-        "Constructor injection through deserializeErrors() during SSR " +
-        "hydration. This is a client-only application — there is no server " +
-        "renderer and no hydration path to reach it through.",
-      clearedBy: "the react-router-dom 7 upgrade",
     },
   ].map((advisory) => [advisory.id, advisory]),
 );

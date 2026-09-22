@@ -2,13 +2,12 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { WalletProvider } from "./context/WalletContext";
 import ErrorBoundary from "./components/ErrorBoundary";
 import AppLayout from "./components/AppLayout";
-import { ROUTER_FUTURE_FLAGS } from "./routerConfig";
 import { routes } from "./routes";
 
 export default function App() {
   return (
     <WalletProvider>
-      <BrowserRouter future={ROUTER_FUTURE_FLAGS}>
+      <BrowserRouter>
         {/* The boundary wraps the routes rather than sitting inside them, so a
             page that throws during render surfaces the recoverable fallback
             instead of white-screening the tab. */}

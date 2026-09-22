@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { ROUTER_FUTURE_FLAGS } from "../../src/routerConfig";
 import DatasetTable from "../../src/components/DatasetTable";
 import type { DatasetResponse } from "../../src/types";
 
@@ -32,7 +31,7 @@ interface Props {
 
 function renderTable(props: Props) {
   return render(
-    <MemoryRouter future={ROUTER_FUTURE_FLAGS}>
+    <MemoryRouter>
       <DatasetTable {...props} />
     </MemoryRouter>,
   );
