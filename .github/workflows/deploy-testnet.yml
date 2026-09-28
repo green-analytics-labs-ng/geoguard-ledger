@@ -125,7 +125,7 @@ jobs:
 
       - name: Install uv
         if: ${{ inputs.run_smoke_test }}
-        uses: astral-sh/setup-uv@v10.1.0
+        uses: astral-sh/setup-uv@v10.2.0
 
       - name: Install backend dependencies
         if: ${{ inputs.run_smoke_test }}
