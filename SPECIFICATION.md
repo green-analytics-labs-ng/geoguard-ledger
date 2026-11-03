@@ -544,7 +544,7 @@ Submit a researcher-signed transaction to the Stellar network.
 ```
 
 #### `GET /api/v1/datasets`
-List all datasets for a researcher.
+List all datasets, most recent first.
 
 **Auth:** public. **Rate limit:** not applied.
 
@@ -1319,14 +1319,13 @@ chore(ci): add Soroban contract test workflow
 | SHA-256 hasher service | CSV canonicalization + hashing (fully implemented). | ✅ |
 | AI anomaly detection service | Per-dataset Isolation Forest scoring with IQR-based row flagging, model versioning, a summary, and geochemical range warnings (`app/services/anomaly.py`). | ✅ |
 | Soroban RPC client | Builds anchor and batch-root transactions, submits signed XDR, polls to confirmation, and runs read-only verification and inclusion simulations (`app/services/soroban.py`). | ✅ |
-| All v1 endpoints | POST datasets, POST submit, GET datasets, GET dataset, POST verify, GET health (routers exist, logic stubbed). | 🚧 Stubbed |
+| All v1 endpoints | Datasets (analyze, anchor, submit, list, detail), batches (create, submit, list, detail), verify, health, and maintenance TTL status — all backed by PostgreSQL. | ✅ |
 | Integration tests | End-to-end test: CSV → hash → AI → Soroban tx. | ⏳ |
 | Docker Compose | PostgreSQL + backend + frontend orchestration. | ✅ |
 | API documentation | OpenAPI docs at `/docs`. | ✅ |
 
 **Remaining Work (Phase 3):**
-- Wire the dataset endpoints to PostgreSQL via SQLAlchemy async sessions.
-- Add `pytest` integration tests with mocked Soroban RPC.
+- None — the database-backed endpoints and the mocked-RPC test suite are in place.
 
 ### Phase 4: Frontend UI & End-to-End Integration (Weeks 8–10) — 🚧 SCAFFOLDED
 
