@@ -30,6 +30,7 @@ from app.db.base import Base
 from app.db.session import get_db
 from app.main import create_app
 from app.services.hasher import compute_hash as _compute_hash
+from app.services.soroban import TESTNET_NETWORK_PASSPHRASE
 
 # Use aiosqlite for isolated, fast test database
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
@@ -66,6 +67,47 @@ def disable_auth_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
     """
     monkeypatch.setattr(settings, "api_keys", "")
     monkeypatch.setattr(settings, "allow_unauthenticated_writes", True)
+
+
+class _OfflineSorobanServer:
+    """A ``SorobanServer`` stand-in that refuses to open a connection.
+
+    ``GET /health`` probes the RPC through a path that never consults
+    ``contract_id``, so that one call has to be answered rather than avoided.
+    Every method raises, and ``check_rpc_connectivity`` reads any failure as
+    "unreachable" — the honest answer for a suite with no network to reach.
+    """
+
+    def __getattr__(self, method: str) -> Any:
+        def refuse(*args: Any, **kwargs: Any) -> Any:
+            raise ConnectionError(
+                f"SorobanServer.{method}() was called, but this test suite is "
+                f"offline. Patch app.services.soroban._get_server in this test "
+                f"if it needs a real RPC response."
+            )
+
+        return refuse
+
+
+@pytest.fixture(autouse=True)
+def offline_soroban_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Run every test with no deployed contract and no reachable Soroban RPC.
+
+    CI has no ``.env``, so ``CONTRACT_ID`` is empty there, while a developer's
+    local ``.env`` normally sets it. That one difference changed what the suite
+    did: the on-chain lookups stopped short-circuiting, and the tests that do
+    not mock them reached Testnet for real. ``soroban_network_passphrase`` is
+    pinned for the same reason — it decides both the unfunded-account hint and
+    what ``GET /health`` reports, so a local Mainnet value would move those too.
+
+    Stubbing the RPC server covers the paths that never look at
+    ``contract_id``, such as that health probe. Tests that exercise the client
+    patch ``_get_server`` or ``check_rpc_connectivity`` themselves; their patch
+    is applied after this fixture, so it wins.
+    """
+    monkeypatch.setattr(settings, "contract_id", "")
+    monkeypatch.setattr(settings, "soroban_network_passphrase", TESTNET_NETWORK_PASSPHRASE)
+    monkeypatch.setattr("app.services.soroban._get_server", lambda: _OfflineSorobanServer())
 
 
 @pytest.fixture(autouse=True)

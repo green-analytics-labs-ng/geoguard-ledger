@@ -3,7 +3,15 @@
 from datetime import UTC, datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    HTTPException,
+    Request,
+    UploadFile,
+    status,
+)
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -100,8 +108,8 @@ class DatasetListResponse(BaseModel):
     status_code=status.HTTP_201_CREATED,
 )
 async def analyze_dataset(
+    request: Request,
     file: UploadFile = File(...),  # noqa: B008
-    submitter_address: str | None = Form(None),  # noqa: B008
     db: AsyncSession = Depends(get_db),  # noqa: B008
     _api_key: str = Depends(verify_api_key),  # noqa: B008
     _rate_limit: None = Depends(rate_limit("datasets")),  # noqa: B008
@@ -117,7 +125,14 @@ async def analyze_dataset(
     # Rejected rather than ignored. A caller still sending the address is using
     # the old contract: it would get a 201 with no transaction in the body and
     # fail much later, at the signing step, with no hint as to why.
-    if submitter_address is not None:
+    #
+    # Read off the raw form rather than declared as a parameter, because FastAPI
+    # derives the request body schema from the signature and documents every
+    # declared field. `Form(None, include_in_schema=False)` is honoured for
+    # query/path/header parameters only — the body model never consults it — so a
+    # declared field stays advertised in /openapi.json while being rejected here.
+    # Not declaring it keeps the published contract to what is accepted.
+    if "submitter_address" in await request.form():
         raise HTTPException(
             status_code=400,
             detail=(

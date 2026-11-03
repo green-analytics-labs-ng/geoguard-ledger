@@ -88,6 +88,32 @@ async def test_analyze_rejects_the_old_submitter_field(client: AsyncClient):
 
 
 @pytest.mark.asyncio
+async def test_analyze_schema_does_not_advertise_the_old_submitter_field(
+    client: AsyncClient,
+):
+    """A rejected field must not also be offered, so /openapi.json omits it.
+
+    The field is read off the raw form rather than declared as a parameter: a
+    declared field is documented whether or not it is accepted, so the rejection
+    and the published contract would disagree. The address is documented where it
+    is accepted now, on the anchor endpoint.
+    """
+    schema = (await client.get("/openapi.json")).json()
+
+    def body_properties(path: str, method: str, content_type: str) -> dict:
+        media = schema["paths"][path][method]["requestBody"]["content"][content_type]
+        name = media["schema"]["$ref"].rsplit("/", 1)[-1]
+        return schema["components"]["schemas"][name]["properties"]
+
+    properties = body_properties("/api/v1/datasets", "post", "multipart/form-data")
+    assert "file" in properties
+    assert "submitter_address" not in properties
+
+    anchor = body_properties("/api/v1/datasets/{dataset_id}/anchor", "post", "application/json")
+    assert "submitter_address" in anchor
+
+
+@pytest.mark.asyncio
 async def test_create_dataset_rejects_unsupported_format(client: AsyncClient):
     """Upload a non-CSV/non-JSON file should return 400."""
     response = await client.post(

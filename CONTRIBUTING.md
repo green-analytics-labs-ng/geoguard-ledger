@@ -42,6 +42,11 @@ git checkout -b fix/issue-number
 - New features must include tests
 - Bug fixes should include a regression test
 - Aim for meaningful coverage, not just line-counting
+- The backend suite must run offline. It pins `CONTRACT_ID` empty and stubs the
+  Soroban RPC client whatever your `.env` says, so a test that needs a real RPC
+  answer has to mock the client itself — otherwise it would pass locally and
+  exercise nothing in CI, or the reverse. `backend/tests/test_offline_suite.py`
+  pins that guarantee.
 
 ### 6. Update Documentation
 

@@ -121,6 +121,62 @@ The system enables any third party to independently verify that a dataset has no
 | **IPFS (Phase 3)** | Decentralized raw data storage so third parties can re-hash and compare against the on-chain fingerprint. |
 | **Event Indexer (Phase 3+)** | Persists on-chain `Anchored` events off-chain, enabling full history reconstruction independent of RPC event retention windows. |
 
+### 2.3 Batched Anchoring (Merkle)
+
+Anchoring every dataset individually costs one Persistent ledger entry — and one
+rent obligation — per submission. Batched anchoring instead commits an arbitrary
+number of dataset hashes to a single Merkle root, so one on-chain entry covers
+the whole batch.
+
+- `backend/app/services/merkle.py` builds the tree off-chain: leaves are
+  `SHA256(0x00 || dataset_hash)`, internal nodes are
+  `SHA256(0x01 || left || right)`, and an odd final node is paired with itself.
+  It returns the root plus a bottom-up sibling proof for each leaf; the same
+  rules are enforced on-chain by `verify_inclusion`.
+- `POST /api/v1/batches` takes `submitter_address` and an ordered
+  `dataset_ids` list, stores each dataset's `leaf_index`, `merkle_root`, and
+  `merkle_proof`, and returns an unsigned transaction invoking
+  `anchor_root(submitter, merkle_root, leaf_count)`. Submitting the signed XDR
+  to `POST /api/v1/batches/{batch_id}/submit` marks the batch and every member
+  dataset `anchored` under the one transaction hash.
+- The contract stores a `RootRecord` under `Root(merkle_root)` in Persistent
+  storage and exposes `verify_inclusion` for read-only proof checking. A
+  batched dataset has no standalone `Record(hash)`, so `/verify` returns an
+  `inclusion` block (root, leaf index, sibling path, and local/on-chain
+  verdicts) instead of a direct anchor record.
+
+Leaf order is fixed by the `dataset_ids` order supplied at batch creation,
+because a `leaf_index` is only meaningful relative to the batch that produced
+its root.
+
+### 2.4 TTL Renewal
+
+Anchors live in Persistent Soroban ledger entries, which are archived once their
+TTL lapses; verification then stops answering for the datasets they covered.
+The contract's write-time bump keeps a new anchor alive for roughly 180 days,
+and renewal pushes that deadline out before it expires.
+
+- `backend/app/services/ttl_renewal.py` selects `anchored` entries whose
+  recorded expiry falls inside `TTL_RENEWAL_WINDOW_DAYS` (default 30), batch
+  roots first via `extend_root_ttl`, then standalone records via `extend_ttl`
+  (batched datasets are skipped because their batch root covers them). Each
+  successful renewal records the new deadline, timestamp, and transaction hash;
+  a failed entry records its error and the run continues.
+- `backend/app/jobs/renew_ttl.py` performs one scheduled pass (cron, systemd
+  timer, or Kubernetes CronJob), supports `--dry-run`, and exits non-zero when a
+  renewal fails. It stays off unless `TTL_RENEWAL_ENABLED=true` and
+  `TTL_RENEWAL_SIGNER_SECRET` is set; renewal is a state-changing call signed by
+  that operational "rent payer" account, not by the researcher.
+- `GET /api/v1/maintenance/ttl-status` reports, per kind, the anchored count,
+  entries due for renewal, entries past their recorded expiry, renewal
+  failures, and the next deadline and last renewal.
+
+The deadlines are recorded in the database when an entry is anchored or renewed,
+not read back from the ledger, so the status endpoint is a drift detector rather
+than ground truth. Keeping the schedule tighter than the renewal window avoids
+duplicate attempts; the contract treats a redundant renewal as a no-op, but the
+fee is still paid.
+
 ---
 
 ## 3. Data Flow
@@ -544,7 +600,7 @@ Submit a researcher-signed transaction to the Stellar network.
 ```
 
 #### `GET /api/v1/datasets`
-List all datasets for a researcher.
+List all datasets, most recent first.
 
 **Auth:** public. **Rate limit:** not applied.
 
@@ -749,7 +805,7 @@ researcher instead of by redeploying.
 | Framework | React 18+ (TypeScript) |
 | Build Tool | Vite |
 | Styling | Tailwind CSS |
-| Stellar SDK | `@stellar/stellar-sdk` + `@stellar/freighter-api` |
+| Stellar SDK | `@stellar/freighter-api` (transaction building happens in the backend) |
 | HTTP Client | `axios` or native `fetch` |
 | Routing | React Router v6 |
 | State Management | React Context + `useReducer` (or Zustand if complexity grows) |
@@ -835,6 +891,7 @@ geoguard-ledger/
 │
 ├── backend/                    # Python FastAPI Backend
 │   ├── pyproject.toml          # Dependencies (managed with uv)
+│   ├── alembic.ini             # Alembic configuration
 │   ├── alembic/                # Database migrations
 │   │   └── versions/
 │   ├── uv.lock                 # Locked dependency versions
@@ -858,7 +915,10 @@ geoguard-ledger/
 │   │   ├── services/
 │   │   │   ├── __init__.py
 │   │   │   ├── hasher.py       # SHA-256 hashing + canonicalization
+│   │   │   ├── parser.py       # CSV/JSON/XML parsing + canonical conversion
+│   │   │   ├── ingest.py       # Upload → canonical content + dataset hash
 │   │   │   ├── anomaly.py      # AI anomaly detection service
+│   │   │   ├── validation.py   # Geochemical plausibility range checks
 │   │   │   ├── merkle.py       # Merkle tree construction + inclusion proofs
 │   │   │   ├── ttl_renewal.py  # Entry expiry math + renewal orchestration
 │   │   │   └── soroban.py      # Soroban RPC client, tx building
@@ -872,17 +932,41 @@ geoguard-ledger/
 │   │   └── core/
 │   │       ├── __init__.py
 │   │       ├── security.py     # Auth (API keys / JWT in later phases)
+│   │       ├── rate_limit.py   # Per-client IP sliding-window rate limiter
+│   │       ├── uploads.py      # Server-side upload size enforcement
 │   │       └── exceptions.py   # Custom exception handlers
 │   ├── tests/
+│   │   ├── __init__.py
 │   │   ├── conftest.py
-│   │   ├── test_datasets.py
+│   │   ├── e2e_full_api.py
+│   │   ├── e2e_submission_flow.py
+│   │   ├── smoke_testnet.py
+│   │   ├── test_auth.py
 │   │   ├── test_batches.py
+│   │   ├── test_config.py
+│   │   ├── test_datasets.py
+│   │   ├── test_db_session.py
+│   │   ├── test_hasher.py
+│   │   ├── test_health.py
+│   │   ├── test_maintenance.py
 │   │   ├── test_merkle.py
-│   │   ├── test_ttl_renewal.py  # Expiry math, selection, renewal, job
-│   │   ├── test_maintenance.py # TTL status endpoint + anchoring seams
+│   │   ├── test_offline_suite.py
+│   │   ├── test_parser.py
+│   │   ├── test_parser_json_types.py
+│   │   ├── test_rate_limit.py
+│   │   ├── test_soroban.py
+│   │   ├── test_soroban_errors.py
+│   │   ├── test_soroban_verify.py
+│   │   ├── test_ttl_renewal.py
+│   │   ├── test_uploads.py
+│   │   ├── test_validation.py
 │   │   ├── test_verify.py
+│   │   ├── test_xml.py
 │   │   └── fixtures/
-│   │       └── sample.csv
+│   │       ├── __init__.py
+│   │       ├── sample.csv
+│   │       └── sample.xml
+│   ├── README.md
 │   ├── Dockerfile
 │   └── .env.example
 │
@@ -892,53 +976,72 @@ geoguard-ledger/
 │   ├── vite.config.ts
 │   ├── tailwind.config.js
 │   ├── index.html
-│   ├── public/                 # Static assets (Phase 4)
+│   ├── public/                 # favicon + apple-touch-icon + og-image
 │   ├── src/
 │   │   ├── main.tsx
 │   │   ├── App.tsx
-│   │   ├── App.test.tsx         # Component smoke tests (Vitest)
+│   │   ├── index.css
+│   │   ├── routerConfig.ts     # Route path constants
 │   │   ├── routes.tsx          # React Router definitions
 │   │   ├── api/
+│   │   │   ├── apiKey.ts       # Browser-stored API key
 │   │   │   ├── client.ts       # Axios instance, interceptors
 │   │   │   ├── datasets.ts     # Dataset API calls
 │   │   │   ├── batches.ts      # Batch API calls
-│   │   │   └── verify.ts       # Verification API calls
+│   │   │   ├── verify.ts       # Verification API calls
+│   │   │   └── health.ts       # Health probe + network passphrase
 │   │   ├── components/
-│   │   │   ├── CsvDropzone.tsx
-│   │   │   ├── WalletConnector.tsx
-│   │   │   ├── SubmissionStepper.tsx
-│   │   │   ├── SingleAnchorFlow.tsx
-│   │   │   ├── BatchAnchorFlow.tsx
-│   │   │   ├── MerkleProof.tsx
-│   │   │   ├── BatchBadge.tsx
 │   │   │   ├── AnomalyBadge.tsx
-│   │   │   ├── TxExplorerLink.tsx
+│   │   │   ├── AnomalyWarnings.tsx
+│   │   │   ├── AppLayout.tsx
+│   │   │   ├── BatchAnchorFlow.tsx
+│   │   │   ├── BatchBadge.tsx
+│   │   │   ├── CsvDropzone.tsx
 │   │   │   ├── DatasetTable.tsx
-│   │   │   └── VerificationResult.tsx
+│   │   │   ├── ErrorBanner.tsx
+│   │   │   ├── ErrorBoundary.tsx
+│   │   │   ├── MerkleProof.tsx
+│   │   │   ├── NetworkMismatchBanner.tsx
+│   │   │   ├── SingleAnchorFlow.tsx
+│   │   │   ├── SubmissionStepper.tsx
+│   │   │   ├── TxExplorerLink.tsx
+│   │   │   ├── VerificationResult.tsx
+│   │   │   ├── WalletConnector.tsx
+│   │   │   └── index.ts        # Component exports
 │   │   ├── pages/
 │   │   │   ├── DashboardPage.tsx
 │   │   │   ├── UploadPage.tsx
 │   │   │   ├── DatasetListPage.tsx
 │   │   │   ├── DatasetDetailPage.tsx
 │   │   │   ├── VerifyPage.tsx
-│   │   │   └── SettingsPage.tsx
+│   │   │   ├── SettingsPage.tsx
+│   │   │   └── index.ts        # Page exports
 │   │   ├── hooks/
 │   │   │   ├── useWallet.ts    # Freighter connection hook
 │   │   │   ├── useDatasets.ts  # Data fetching hook
-│   │   │   └── useVerify.ts   # Verification hook
+│   │   │   ├── useVerify.ts    # Verification hook
+│   │   │   ├── usePendingAnchor.ts # Polls a dataset while its anchor confirms
+│   │   │   ├── useContractNetworkPassphrase.ts # Resolves the contract network passphrase
+│   │   │   └── index.ts        # Hook exports
 │   │   ├── context/
 │   │   │   └── WalletContext.tsx
 │   │   ├── types/
 │   │   │   └── index.ts        # Shared TypeScript types
 │   │   └── utils/
 │   │       ├── csv.ts          # Client-side CSV parsing/preview
-│   │       └── stellar.ts      # Stellar helpers (network config, etc.)
+│   │       ├── xml.ts          # Client-side XML parsing/preview
+│   │       ├── merkle.ts       # Batch membership + proof helpers
+│   │       ├── stellar.ts      # Stellar helpers (network config, etc.)
+│   │       └── errors.ts       # Error message helpers
 │   ├── tests/
-│   │   ├── components/
-│   │   │   └── index.test.tsx  # Component export smoke tests
-│   │   └── pages/
-│   │       └── index.test.tsx  # Page export smoke tests
-│   ├── public/                 # favicon + apple-touch-icon + og-image
+│   │   ├── a11y/               # Page accessibility checks (vitest-axe)
+│   │   ├── api/                # API client tests
+│   │   ├── app/                # Routing, layout, error-boundary tests
+│   │   ├── components/         # Component tests
+│   │   ├── hooks/              # Hook tests
+│   │   ├── pages/              # Page tests
+│   │   ├── utils/              # CSV, XML, Merkle, Stellar, error tests
+│   │   └── setup.ts            # Vitest setup (jest-dom)
 │   └── Dockerfile
 │
 ├── docker-compose.yml          # Orchestrates backend + db + frontend
@@ -1270,18 +1373,15 @@ chore(ci): add Soroban contract test workflow
 | FastAPI project scaffold | App factory, config, CORS, lifespan. | ✅ |
 | Database models + migrations | SQLAlchemy async models, session factory. | ✅ |
 | SHA-256 hasher service | CSV canonicalization + hashing (fully implemented). | ✅ |
-| AI anomaly detection service | Isolation Forest model, model versioning, scoring. | 🚧 Stubbed |
-| Soroban RPC client | Transaction building, signing prep, submission, polling. | 🚧 Stubbed |
-| All v1 endpoints | POST datasets, POST submit, GET datasets, GET dataset, POST verify, GET health (routers exist, logic stubbed). | 🚧 Stubbed |
+| AI anomaly detection service | Per-dataset Isolation Forest scoring with IQR-based row flagging, model versioning, a summary, and geochemical range warnings (`app/services/anomaly.py`). | ✅ |
+| Soroban RPC client | Builds anchor and batch-root transactions, submits signed XDR, polls to confirmation, and runs read-only verification and inclusion simulations (`app/services/soroban.py`). | ✅ |
+| All v1 endpoints | Datasets (analyze, anchor, submit, list, detail), batches (create, submit, list, detail), verify, health, and maintenance TTL status — all backed by PostgreSQL. | ✅ |
 | Integration tests | End-to-end test: CSV → hash → AI → Soroban tx. | ⏳ |
 | Docker Compose | PostgreSQL + backend + frontend orchestration. | ✅ |
 | API documentation | OpenAPI docs at `/docs`. | ✅ |
 
 **Remaining Work (Phase 3):**
-- Implement `anomaly.py` with a trained Isolation Forest model using scikit-learn.
-- Implement `soroban.py` using `stellar-sdk` for transaction building and RPC submission.
-- Wire the dataset endpoints to PostgreSQL via SQLAlchemy async sessions.
-- Add `pytest` integration tests with mocked Soroban RPC.
+- None — the database-backed endpoints and the mocked-RPC test suite are in place.
 
 ### Phase 4: Frontend UI & End-to-End Integration (Weeks 8–10) — 🚧 SCAFFOLDED
 
@@ -1291,15 +1391,15 @@ chore(ci): add Soroban contract test workflow
 | Freighter wallet integration | `useWallet` hook, `WalletContext`, `WalletConnector` component. | ✅ |
 | Upload page | `CsvDropzone` with single-dataset and batch (Merkle root) anchoring modes. | ✅ |
 | Submission workflow | `SubmissionStepper`: Upload → Preview → AI Report → Sign → Confirmed. | 🚧 Scaffolded |
-| Dashboard page | Stats cards, recent submissions table. | 🚧 Scaffolded |
-| Dataset list + detail pages | Table view, detail view with anomaly badge. | 🚧 Scaffolded |
-| Verification page | Upload/input → verify → side-by-side result. | 🚧 Scaffolded |
-| Settings page | Network selection, wallet info. | 🚧 Scaffolded |
+| Dashboard page | Static stats cards and quick actions; not yet wired to dataset data. | 🚧 Scaffolded |
+| Dataset list + detail pages | Table view; detail view with anomaly badge, transaction link, and batch membership with inclusion proof. | ✅ |
+| Verification page | Hash or file upload → verify → side-by-side result, with linked-hash prefill and inclusion verdicts. | ✅ |
+| Settings page | Wallet connect/disconnect, browser-stored API key, and current network display. | ✅ |
 | End-to-end tests | Full flow: CSV upload → verify on-chain. | ⏳ |
 | Polish & accessibility | Loading states, error boundaries, keyboard nav, ARIA labels. | ⏳ |
 
 **Remaining Work (Phase 4):**
-- Implement all page components with full business logic (API calls, state management, error handling).
+- Wire the Dashboard page to real dataset statistics instead of placeholder cards.
 - Add Vitest component tests and Playwright E2E tests.
 - Implement all UX states: loading spinners, error toasts, empty states, transaction pending animations.
 
