@@ -332,21 +332,29 @@ geoguard-ledger/
 │   ├── app/
 │   │   ├── main.py             # App factory, CORS, lifespan
 │   │   ├── config.py           # Environment-based configuration
-│   │   ├── api/v1/             # REST endpoints (datasets, batches, verify, health)
+│   │   ├── api/v1/             # Datasets, batches, verify, health, maintenance endpoints
 │   │   ├── models/             # SQLAlchemy models + Pydantic schemas
-│   │   ├── services/           # Hasher, Merkle proofs, TTL renewal, AI detector, Soroban client
-│   │   ├── jobs/               # Scheduled jobs (TTL renewal)
+│   │   ├── services/           # Parser/ingest, hasher, anomaly, validation, Merkle, TTL renewal, Soroban
+│   │   ├── jobs/               # Scheduled TTL renewal
 │   │   ├── db/                 # Async SQLAlchemy session management
-│   │   └── core/               # Security, custom exceptions
-│   └── tests/                  # Unit suites, plus smoke_testnet.py for live Testnet checks
+│   │   └── core/               # Security, rate limiting, upload limits, exceptions
+│   ├── tests/                  # Unit suites, e2e scripts, plus smoke_testnet.py for live checks
+│   ├── alembic/                # Database migrations
+│   └── pyproject.toml          # Dependencies (managed with uv)
 │
 ├── frontend/                   # React frontend (TypeScript + Tailwind)
 │   ├── src/
-│   │   ├── pages/              # Dashboard, Upload, Verify, Settings
-│   │   ├── components/         # CsvDropzone, BatchAnchorFlow, MerkleProof, BatchBadge, AnomalyBadge
-│   │   ├── hooks/              # useWallet, useDatasets, useVerify
+│   │   ├── main.tsx            # React entry point
+│   │   ├── App.tsx             # Application shell
+│   │   ├── routerConfig.ts     # Route path constants
+│   │   ├── routes.tsx          # React Router definitions
+│   │   ├── pages/              # Dashboard, Upload, DatasetList, DatasetDetail, Verify, Settings
+│   │   ├── components/         # Anchor flows, MerkleProof, BatchBadge, AnomalyBadge, layout, errors
+│   │   ├── hooks/              # useWallet, useDatasets, useVerify, usePendingAnchor, useContractNetworkPassphrase
 │   │   ├── context/            # WalletContext (Freighter state)
-│   │   └── api/                # Typed API client layer
+│   │   ├── api/                # Typed API client layer (datasets, batches, verify, health, API key)
+│   │   ├── utils/              # CSV/XML parsing, Merkle helpers, Stellar helpers, errors
+│   │   └── types/              # Shared TypeScript types
 │   ├── public/                 # Static assets: icons + link-preview card
 │   └── tests/                  # Vitest + React Testing Library tests
 │
