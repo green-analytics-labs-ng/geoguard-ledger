@@ -1335,15 +1335,15 @@ chore(ci): add Soroban contract test workflow
 | Freighter wallet integration | `useWallet` hook, `WalletContext`, `WalletConnector` component. | ✅ |
 | Upload page | `CsvDropzone` with single-dataset and batch (Merkle root) anchoring modes. | ✅ |
 | Submission workflow | `SubmissionStepper`: Upload → Preview → AI Report → Sign → Confirmed. | 🚧 Scaffolded |
-| Dashboard page | Stats cards, recent submissions table. | 🚧 Scaffolded |
-| Dataset list + detail pages | Table view, detail view with anomaly badge. | 🚧 Scaffolded |
-| Verification page | Upload/input → verify → side-by-side result. | 🚧 Scaffolded |
-| Settings page | Network selection, wallet info. | 🚧 Scaffolded |
+| Dashboard page | Static stats cards and quick actions; not yet wired to dataset data. | 🚧 Scaffolded |
+| Dataset list + detail pages | Table view; detail view with anomaly badge, transaction link, and batch membership with inclusion proof. | ✅ |
+| Verification page | Hash or file upload → verify → side-by-side result, with linked-hash prefill and inclusion verdicts. | ✅ |
+| Settings page | Wallet connect/disconnect, browser-stored API key, and current network display. | ✅ |
 | End-to-end tests | Full flow: CSV upload → verify on-chain. | ⏳ |
 | Polish & accessibility | Loading states, error boundaries, keyboard nav, ARIA labels. | ⏳ |
 
 **Remaining Work (Phase 4):**
-- Implement all page components with full business logic (API calls, state management, error handling).
+- Wire the Dashboard page to real dataset statistics instead of placeholder cards.
 - Add Vitest component tests and Playwright E2E tests.
 - Implement all UX states: loading spinners, error toasts, empty states, transaction pending animations.
 
