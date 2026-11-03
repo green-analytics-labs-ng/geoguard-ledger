@@ -16,31 +16,47 @@
 //!
 //! | operation                              | cpu     | memory |
 //! |----------------------------------------|---------|--------|
-//! | `verify_inclusion`, 1 leaf (depth 0)   |  31,193 |  3,624 |
-//! | `verify_inclusion`, 1,024 leaves (10)  | 131,083 |  6,194 |
-//! | rejected over-long proof               |  23,006 |  3,399 |
-//! | `anchor_hash`                          | 105,137 | 14,921 |
-//! | `anchor_root`                          | 113,796 | 16,882 |
+//! | `verify_inclusion`, 1 leaf (depth 0)   |  47,826 | 30,400 |
+//! | `verify_inclusion`, 1,024 leaves (10)  | 146,646 | 33,290 |
+//! | rejected over-long proof               |  39,746 | 30,143 |
+//! | `anchor_hash`                          | 148,502 | 60,087 |
+//! | `anchor_root`                          | 160,694 | 60,178 |
 //!
 //! Each ceiling sits roughly 25% above its measurement — enough to absorb a
 //! refactor, little enough that a change which makes verification scale with
 //! the batch cannot slip through. See `docs/gas_audit.md`.
+//!
+//! These were re-based when soroban-sdk moved from 22 to 28, and it is worth
+//! being precise about what moved. Nothing in the code they measure changed —
+//! the same functions, the same arithmetic — yet every figure rose, and memory
+//! rose several-fold on operations that barely allocate: a single-leaf
+//! verification went from 3,624 bytes to 30,400. That is a change of *meter*,
+//! not of contract. sdk 28 brings a new soroban-env-host, and the host is what
+//! charges for instructions and bytes here.
+//!
+//! So the pre-28 table (31,193 / 131,083 / 23,006 / 105,137 / 113,796 cpu at
+//! 3,624-16,882 bytes) is not comparable to this one, and a diff across the two
+//! reads as a regression that never happened. What does still compare across it
+//! is the *shape*: verification grows with proof depth rather than batch size,
+//! and a rejected proof stays cheap because it short-circuits before the hashing
+//! loop. That is the property these ceilings exist to protect, and the test below
+//! checks the depth-scaling half of it directly rather than by proportion.
 
 use soroban_sdk::{testutils::Address as _, Address, BytesN, Env, Symbol, Vec};
 
 use crate::test_support::{distinct_hashes, quiet_env, setup, Tree};
 
 /// `verify_inclusion` over a 1,024-leaf batch (a 10-level proof).
-const MAX_DEPTH_INCLUSION_CPU: u64 = 165_000;
+const MAX_DEPTH_INCLUSION_CPU: u64 = 185_000;
 
 /// `verify_inclusion` over a single-leaf batch (no sibling path at all).
-const SINGLE_LEAF_INCLUSION_CPU: u64 = 40_000;
+const SINGLE_LEAF_INCLUSION_CPU: u64 = 60_000;
 
 /// A proof rejected before any hashing happens.
-const REJECTED_PROOF_CPU: u64 = 30_000;
+const REJECTED_PROOF_CPU: u64 = 50_000;
 
-const ANCHOR_HASH_CPU: u64 = 130_000;
-const ANCHOR_ROOT_CPU: u64 = 140_000;
+const ANCHOR_HASH_CPU: u64 = 185_000;
+const ANCHOR_ROOT_CPU: u64 = 200_000;
 
 struct Cost {
     cpu: u64,

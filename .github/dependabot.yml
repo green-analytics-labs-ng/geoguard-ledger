@@ -4,9 +4,16 @@ version: 2
 # ever notices an outdated or vulnerable dependency. Every manifest in the repo
 # is covered here.
 #
-# Grouping is deliberately split by semver level: patch and minor bumps arrive
-# as one reviewable PR per ecosystem, while a major bump gets its own PR,
-# because that is the one that needs reading before it merges.
+# Cadence is monthly, and a run is grouped by semver level rather than lumped
+# together: minor and patch bumps arrive as one pull request per ecosystem, and
+# a major gets its own, because that is the one that needs reading before it
+# merges.
+#
+# Mixing the two levels is not a shortcut, it is a trap. A group containing a
+# major cannot go green until the migration that major needs has been written,
+# so every routine bump sharing the group is blocked behind work nobody asked
+# for — and the whole batch has to be split apart again before any of it can
+# land. Keeping majors separate costs one small pull request and avoids that.
 updates:
   # The backend is a uv project, so this is the `uv` ecosystem rather than
   # `pip`. uv.lock is committed and is what `uv sync` installs; the `pip`
@@ -15,7 +22,7 @@ updates:
   - package-ecosystem: "uv"
     directory: "/backend"
     schedule:
-      interval: "weekly"
+      interval: "monthly"
     open-pull-requests-limit: 5
     commit-message:
       prefix: "chore(deps)"
@@ -27,7 +34,7 @@ updates:
   - package-ecosystem: "npm"
     directory: "/frontend"
     schedule:
-      interval: "weekly"
+      interval: "monthly"
     open-pull-requests-limit: 5
     commit-message:
       prefix: "chore(deps)"
@@ -35,13 +42,50 @@ updates:
       frontend-patch-minor:
         patterns: ["*"]
         update-types: ["minor", "patch"]
+    ignore:
+      # eslint 10 cannot resolve in this tree, and not for a reason a commit here
+      # can fix. Two plugins still declare a peer ceiling of ^9:
+      #
+      #   eslint-plugin-jsx-a11y — peers `^3 || ... || ^9`, and its newest
+      #     release is from October 2024, so nothing has moved in about two
+      #     years. Upstream, not ours.
+      #   eslint-plugin-react-hooks — 5.x peers up to ^9. A later major does
+      #     accept ^10, so this one is ours to move.
+      #
+      # A tree containing eslint 10 therefore cannot resolve at all, so `npm ci`
+      # fails before a single check runs and the run is red every month for a
+      # reason nothing in this repo can fix. Lifting this means moving
+      # @eslint/js to 10 and react-hooks off 5 in the same change — and the
+      # first blocker is the one to watch, since it is out of our hands.
+      #
+      # The 9.x line still reaches the group above; 10 and later are held.
+      - dependency-name: "eslint"
+        versions: [">=10"]
+
+      # React 19.3 adds 29.4 kB to the entry chunk — the same order as the whole
+      # react-router major, for a minor with no advisory behind it — which takes
+      # first paint past the entry budget in vite.config.ts on its own. The
+      # runtime and the type packages move together, because types newer than
+      # the installed runtime would let a 19.3-only API type-check. Remove these
+      # four once the budget can absorb the growth, which means deciding where
+      # that 29 kB is worth spending.
+      - dependency-name: "react"
+        versions: [">=19.3"]
+      - dependency-name: "react-dom"
+        versions: [">=19.3"]
+      - dependency-name: "@types/react"
+        versions: [">=19.3"]
+      - dependency-name: "@types/react-dom"
+        versions: [">=19.3"]
 
   # Soroban pins its own toolchain and SDK generation, so contract bumps are the
-  # ones most likely to need a code change alongside them.
+  # ones most likely to need a code change alongside them — sdk 28 needed a new
+  # build system, not just a version. This is the ecosystem where keeping majors
+  # out of the routine group earns its keep most.
   - package-ecosystem: "cargo"
     directory: "/contracts/geoguard-ledger"
     schedule:
-      interval: "weekly"
+      interval: "monthly"
     open-pull-requests-limit: 5
     commit-message:
       prefix: "chore(deps)"
@@ -50,14 +94,18 @@ updates:
         patterns: ["*"]
         update-types: ["minor", "patch"]
 
-  # The workflows pin actions by major tag, so this is what notices when a
-  # pinned action has a security release.
+  # Pinned actions are referenced by major tag, so most updates here are major
+  # by definition and will arrive one per action rather than in the group. That
+  # is the intended trade: a tag move can drop a Node runtime or change an
+  # input, and a failing one is easier to attribute when it is alone.
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "weekly"
+      interval: "monthly"
+    open-pull-requests-limit: 5
     commit-message:
       prefix: "chore(ci)"
     groups:
-      actions:
+      actions-patch-minor:
         patterns: ["*"]
+        update-types: ["minor", "patch"]

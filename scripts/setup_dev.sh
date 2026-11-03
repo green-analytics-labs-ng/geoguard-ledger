@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # One-command development environment setup for GeoGuard Ledger.
-# Prerequisites: Docker, Rust, Python 3.11+, Node 18+
+# Prerequisites: Docker, Rust, stellar CLI v25.2.0+, Python 3.11+, Node 18+
 
 set -euo pipefail
 
@@ -25,9 +25,12 @@ npm install
 cd ..
 
 # 3. Build Soroban contract
+# `stellar contract build`, not `cargo build`: soroban-sdk 28 refuses to compile
+# for a wasm target unless the build system declares that it shakes the contract
+# spec, which only the CLI does.
 echo "[3/5] Building Soroban contract..."
 cd contracts/geoguard-ledger
-cargo build --target wasm32-unknown-unknown --release
+stellar contract build
 cd ../..
 
 # 4. Start PostgreSQL + backend + frontend via Docker

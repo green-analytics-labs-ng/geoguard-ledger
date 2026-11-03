@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { ROUTER_FUTURE_FLAGS } from "../../src/routerConfig";
 
 const wallet = vi.hoisted(() => ({ value: {} as Record<string, unknown> }));
 
@@ -70,7 +69,7 @@ function anchorResponse(): DatasetAnchorResponse {
 
 function renderFlow() {
   return render(
-    <MemoryRouter future={ROUTER_FUTURE_FLAGS}>
+    <MemoryRouter>
       <SingleAnchorFlow />
     </MemoryRouter>,
   );

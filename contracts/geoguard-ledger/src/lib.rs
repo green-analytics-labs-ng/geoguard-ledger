@@ -7,7 +7,7 @@ mod storage;
 mod types;
 
 pub use errors::Error;
-pub use types::{AnchorRecord, RootRecord};
+pub use types::{AnchorRecord, Anchored, RootAnchored, RootRecord};
 
 /// How far below the requested `extend_to` target a record's remaining TTL must
 /// fall before `extend_ttl` actually renews it.
@@ -100,10 +100,12 @@ impl GeoGuardLedger {
         storage::increment_submit_count(&env, &submitter);
         storage::increment_total_anchored(&env);
 
-        env.events().publish(
-            (Symbol::new(&env, "Anchored"),),
-            (dataset_hash, submitter, timestamp),
-        );
+        Anchored {
+            dataset_hash,
+            submitter,
+            timestamp,
+        }
+        .publish(&env);
 
         Ok(record)
     }
@@ -205,10 +207,13 @@ impl GeoGuardLedger {
         storage::increment_batch_count(&env, &submitter);
         storage::increment_total_batches(&env);
 
-        env.events().publish(
-            (Symbol::new(&env, "RootAnchored"),),
-            (merkle_root, submitter, leaf_count, timestamp),
-        );
+        RootAnchored {
+            merkle_root,
+            submitter,
+            leaf_count,
+            timestamp,
+        }
+        .publish(&env);
 
         Ok(record)
     }

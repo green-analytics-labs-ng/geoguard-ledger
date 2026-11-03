@@ -3,11 +3,15 @@
 # configured network).
 #
 # Prerequisites:
-#   - stellar CLI installed, v21 or newer:
+#   - stellar CLI installed, v25.2.0 or newer:
 #       curl -fsSL https://github.com/stellar/stellar-cli/raw/main/install.sh | sh
 #     (or: brew install stellar-cli / cargo install --locked stellar-cli --features opt)
+#     v25.2.0 is the floor because building the contract requires it, not because
+#     deploying does: soroban-sdk 28 refuses to compile for a wasm target unless
+#     the build system declares that it shakes the contract spec, and only this
+#     CLI does that. An already-built WASM still deploys on an older one.
 #   - DEPLOYER_SECRET env var set with a funded secret key (S...)
-#   - Contract built: cd contracts/geoguard-ledger && cargo build --target wasm32-unknown-unknown --release
+#   - Contract built: cd contracts/geoguard-ledger && stellar contract build
 #
 # Usage:
 #   DEPLOYER_SECRET=S... ./scripts/deploy_contract.sh
@@ -20,8 +24,8 @@
 #                           pass the ID to the smoke test; written as soon as
 #                           the deploy succeeds, before initialization.
 #   --network NAME          Network to deploy to (default: testnet).
-#   --wasm PATH             WASM file to deploy. Defaults to the cargo release
-#                           build (see WASM_PATH below).
+#   --wasm PATH             WASM file to deploy. Defaults to the `stellar
+#                           contract build` output (see WASM_PATH below).
 #   -h, --help              Show this help.
 #
 # Environment:
@@ -70,11 +74,13 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-# This is the path the repository's CI build produces. `stellar contract build
-# --optimize` writes to target/wasm32v1-none/release/ instead on CLI v21+, so
-# pass --wasm (or WASM_PATH) if you build that way.
+# The path `stellar contract build` writes, which is also what the repository's
+# CI and release workflows produce. It is the only supported build now: a bare
+# `cargo build --target ...wasm...` is refused by soroban-sdk 28's build script,
+# so there is no cargo path to fall back to. Pass --wasm (or WASM_PATH) to deploy
+# something built elsewhere.
 if [[ -z "$WASM_PATH" ]]; then
-    WASM_PATH="$PROJECT_ROOT/contracts/geoguard-ledger/target/wasm32-unknown-unknown/release/geoguard_ledger.wasm"
+    WASM_PATH="$PROJECT_ROOT/contracts/geoguard-ledger/target/wasm32v1-none/release/geoguard_ledger.wasm"
 fi
 
 # ── Prerequisites check ───────────────────────────────────────────
@@ -99,7 +105,7 @@ if [[ ! -f "$WASM_PATH" ]]; then
     {
         echo "Error: WASM not found at $WASM_PATH"
         echo "Build it first:"
-        echo "  cd contracts/geoguard-ledger && cargo build --target wasm32-unknown-unknown --release"
+        echo "  cd contracts/geoguard-ledger && stellar contract build"
     } >&2
     exit 1
 fi

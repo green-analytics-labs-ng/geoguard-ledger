@@ -2,16 +2,20 @@
 name = "geoguard-ledger"
 version = "0.3.0"
 edition = "2021"
+# soroban-sdk 28's own MSRV. Stated here so an older toolchain fails with
+# cargo's "requires rustc 1.91" message instead of somewhere inside the SDK's
+# build script, which reports the wasm target rather than the toolchain.
+rust-version = "1.91"
 description = "GeoGuard Ledger — Soroban smart contract for research integrity anchoring on Stellar"
 
 [lib]
 crate-type = ["cdylib"]
 
 [dependencies]
-soroban-sdk = "22.0"
+soroban-sdk = "28.0"
 
 [dev-dependencies]
-soroban-sdk = { version = "22.0", features = ["testutils"] }
+soroban-sdk = { version = "28.0", features = ["testutils"] }
 proptest = "1.5"
 
 [patch.crates-io]
