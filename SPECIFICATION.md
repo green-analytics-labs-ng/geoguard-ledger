@@ -835,6 +835,7 @@ geoguard-ledger/
 │
 ├── backend/                    # Python FastAPI Backend
 │   ├── pyproject.toml          # Dependencies (managed with uv)
+│   ├── alembic.ini             # Alembic configuration
 │   ├── alembic/                # Database migrations
 │   │   └── versions/
 │   ├── uv.lock                 # Locked dependency versions
@@ -858,7 +859,10 @@ geoguard-ledger/
 │   │   ├── services/
 │   │   │   ├── __init__.py
 │   │   │   ├── hasher.py       # SHA-256 hashing + canonicalization
+│   │   │   ├── parser.py       # CSV/JSON/XML parsing + canonical conversion
+│   │   │   ├── ingest.py       # Upload → canonical content + dataset hash
 │   │   │   ├── anomaly.py      # AI anomaly detection service
+│   │   │   ├── validation.py   # Geochemical plausibility range checks
 │   │   │   ├── merkle.py       # Merkle tree construction + inclusion proofs
 │   │   │   ├── ttl_renewal.py  # Entry expiry math + renewal orchestration
 │   │   │   └── soroban.py      # Soroban RPC client, tx building
@@ -872,17 +876,41 @@ geoguard-ledger/
 │   │   └── core/
 │   │       ├── __init__.py
 │   │       ├── security.py     # Auth (API keys / JWT in later phases)
+│   │       ├── rate_limit.py   # Per-client IP sliding-window rate limiter
+│   │       ├── uploads.py      # Server-side upload size enforcement
 │   │       └── exceptions.py   # Custom exception handlers
 │   ├── tests/
+│   │   ├── __init__.py
 │   │   ├── conftest.py
-│   │   ├── test_datasets.py
+│   │   ├── e2e_full_api.py
+│   │   ├── e2e_submission_flow.py
+│   │   ├── smoke_testnet.py
+│   │   ├── test_auth.py
 │   │   ├── test_batches.py
+│   │   ├── test_config.py
+│   │   ├── test_datasets.py
+│   │   ├── test_db_session.py
+│   │   ├── test_hasher.py
+│   │   ├── test_health.py
+│   │   ├── test_maintenance.py
 │   │   ├── test_merkle.py
-│   │   ├── test_ttl_renewal.py  # Expiry math, selection, renewal, job
-│   │   ├── test_maintenance.py # TTL status endpoint + anchoring seams
+│   │   ├── test_offline_suite.py
+│   │   ├── test_parser.py
+│   │   ├── test_parser_json_types.py
+│   │   ├── test_rate_limit.py
+│   │   ├── test_soroban.py
+│   │   ├── test_soroban_errors.py
+│   │   ├── test_soroban_verify.py
+│   │   ├── test_ttl_renewal.py
+│   │   ├── test_uploads.py
+│   │   ├── test_validation.py
 │   │   ├── test_verify.py
+│   │   ├── test_xml.py
 │   │   └── fixtures/
-│   │       └── sample.csv
+│   │       ├── __init__.py
+│   │       ├── sample.csv
+│   │       └── sample.xml
+│   ├── README.md
 │   ├── Dockerfile
 │   └── .env.example
 │
