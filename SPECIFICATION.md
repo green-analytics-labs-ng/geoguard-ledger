@@ -920,53 +920,72 @@ geoguard-ledger/
 │   ├── vite.config.ts
 │   ├── tailwind.config.js
 │   ├── index.html
-│   ├── public/                 # Static assets (Phase 4)
+│   ├── public/                 # favicon + apple-touch-icon + og-image
 │   ├── src/
 │   │   ├── main.tsx
 │   │   ├── App.tsx
-│   │   ├── App.test.tsx         # Component smoke tests (Vitest)
+│   │   ├── index.css
+│   │   ├── routerConfig.ts     # Route path constants
 │   │   ├── routes.tsx          # React Router definitions
 │   │   ├── api/
+│   │   │   ├── apiKey.ts       # Browser-stored API key
 │   │   │   ├── client.ts       # Axios instance, interceptors
 │   │   │   ├── datasets.ts     # Dataset API calls
 │   │   │   ├── batches.ts      # Batch API calls
-│   │   │   └── verify.ts       # Verification API calls
+│   │   │   ├── verify.ts       # Verification API calls
+│   │   │   └── health.ts       # Health probe + network passphrase
 │   │   ├── components/
-│   │   │   ├── CsvDropzone.tsx
-│   │   │   ├── WalletConnector.tsx
-│   │   │   ├── SubmissionStepper.tsx
-│   │   │   ├── SingleAnchorFlow.tsx
-│   │   │   ├── BatchAnchorFlow.tsx
-│   │   │   ├── MerkleProof.tsx
-│   │   │   ├── BatchBadge.tsx
 │   │   │   ├── AnomalyBadge.tsx
-│   │   │   ├── TxExplorerLink.tsx
+│   │   │   ├── AnomalyWarnings.tsx
+│   │   │   ├── AppLayout.tsx
+│   │   │   ├── BatchAnchorFlow.tsx
+│   │   │   ├── BatchBadge.tsx
+│   │   │   ├── CsvDropzone.tsx
 │   │   │   ├── DatasetTable.tsx
-│   │   │   └── VerificationResult.tsx
+│   │   │   ├── ErrorBanner.tsx
+│   │   │   ├── ErrorBoundary.tsx
+│   │   │   ├── MerkleProof.tsx
+│   │   │   ├── NetworkMismatchBanner.tsx
+│   │   │   ├── SingleAnchorFlow.tsx
+│   │   │   ├── SubmissionStepper.tsx
+│   │   │   ├── TxExplorerLink.tsx
+│   │   │   ├── VerificationResult.tsx
+│   │   │   ├── WalletConnector.tsx
+│   │   │   └── index.ts        # Component exports
 │   │   ├── pages/
 │   │   │   ├── DashboardPage.tsx
 │   │   │   ├── UploadPage.tsx
 │   │   │   ├── DatasetListPage.tsx
 │   │   │   ├── DatasetDetailPage.tsx
 │   │   │   ├── VerifyPage.tsx
-│   │   │   └── SettingsPage.tsx
+│   │   │   ├── SettingsPage.tsx
+│   │   │   └── index.ts        # Page exports
 │   │   ├── hooks/
 │   │   │   ├── useWallet.ts    # Freighter connection hook
 │   │   │   ├── useDatasets.ts  # Data fetching hook
-│   │   │   └── useVerify.ts   # Verification hook
+│   │   │   ├── useVerify.ts    # Verification hook
+│   │   │   ├── usePendingAnchor.ts # Polls a dataset while its anchor confirms
+│   │   │   ├── useContractNetworkPassphrase.ts # Resolves the contract network passphrase
+│   │   │   └── index.ts        # Hook exports
 │   │   ├── context/
 │   │   │   └── WalletContext.tsx
 │   │   ├── types/
 │   │   │   └── index.ts        # Shared TypeScript types
 │   │   └── utils/
 │   │       ├── csv.ts          # Client-side CSV parsing/preview
-│   │       └── stellar.ts      # Stellar helpers (network config, etc.)
+│   │       ├── xml.ts          # Client-side XML parsing/preview
+│   │       ├── merkle.ts       # Batch membership + proof helpers
+│   │       ├── stellar.ts      # Stellar helpers (network config, etc.)
+│   │       └── errors.ts       # Error message helpers
 │   ├── tests/
-│   │   ├── components/
-│   │   │   └── index.test.tsx  # Component export smoke tests
-│   │   └── pages/
-│   │       └── index.test.tsx  # Page export smoke tests
-│   ├── public/                 # favicon + apple-touch-icon + og-image
+│   │   ├── a11y/               # Page accessibility checks (vitest-axe)
+│   │   ├── api/                # API client tests
+│   │   ├── app/                # Routing, layout, error-boundary tests
+│   │   ├── components/         # Component tests
+│   │   ├── hooks/              # Hook tests
+│   │   ├── pages/              # Page tests
+│   │   ├── utils/              # CSV, XML, Merkle, Stellar, error tests
+│   │   └── setup.ts            # Vitest setup (jest-dom)
 │   └── Dockerfile
 │
 ├── docker-compose.yml          # Orchestrates backend + db + frontend
