@@ -1318,14 +1318,13 @@ chore(ci): add Soroban contract test workflow
 | Database models + migrations | SQLAlchemy async models, session factory. | ✅ |
 | SHA-256 hasher service | CSV canonicalization + hashing (fully implemented). | ✅ |
 | AI anomaly detection service | Per-dataset Isolation Forest scoring with IQR-based row flagging, model versioning, a summary, and geochemical range warnings (`app/services/anomaly.py`). | ✅ |
-| Soroban RPC client | Transaction building, signing prep, submission, polling. | 🚧 Stubbed |
+| Soroban RPC client | Builds anchor and batch-root transactions, submits signed XDR, polls to confirmation, and runs read-only verification and inclusion simulations (`app/services/soroban.py`). | ✅ |
 | All v1 endpoints | POST datasets, POST submit, GET datasets, GET dataset, POST verify, GET health (routers exist, logic stubbed). | 🚧 Stubbed |
 | Integration tests | End-to-end test: CSV → hash → AI → Soroban tx. | ⏳ |
 | Docker Compose | PostgreSQL + backend + frontend orchestration. | ✅ |
 | API documentation | OpenAPI docs at `/docs`. | ✅ |
 
 **Remaining Work (Phase 3):**
-- Implement `soroban.py` using `stellar-sdk` for transaction building and RPC submission.
 - Wire the dataset endpoints to PostgreSQL via SQLAlchemy async sessions.
 - Add `pytest` integration tests with mocked Soroban RPC.
 
