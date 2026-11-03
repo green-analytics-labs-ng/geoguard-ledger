@@ -1317,7 +1317,7 @@ chore(ci): add Soroban contract test workflow
 | FastAPI project scaffold | App factory, config, CORS, lifespan. | ✅ |
 | Database models + migrations | SQLAlchemy async models, session factory. | ✅ |
 | SHA-256 hasher service | CSV canonicalization + hashing (fully implemented). | ✅ |
-| AI anomaly detection service | Isolation Forest model, model versioning, scoring. | 🚧 Stubbed |
+| AI anomaly detection service | Per-dataset Isolation Forest scoring with IQR-based row flagging, model versioning, a summary, and geochemical range warnings (`app/services/anomaly.py`). | ✅ |
 | Soroban RPC client | Transaction building, signing prep, submission, polling. | 🚧 Stubbed |
 | All v1 endpoints | POST datasets, POST submit, GET datasets, GET dataset, POST verify, GET health (routers exist, logic stubbed). | 🚧 Stubbed |
 | Integration tests | End-to-end test: CSV → hash → AI → Soroban tx. | ⏳ |
@@ -1325,7 +1325,6 @@ chore(ci): add Soroban contract test workflow
 | API documentation | OpenAPI docs at `/docs`. | ✅ |
 
 **Remaining Work (Phase 3):**
-- Implement `anomaly.py` with a trained Isolation Forest model using scikit-learn.
 - Implement `soroban.py` using `stellar-sdk` for transaction building and RPC submission.
 - Wire the dataset endpoints to PostgreSQL via SQLAlchemy async sessions.
 - Add `pytest` integration tests with mocked Soroban RPC.
