@@ -149,6 +149,34 @@ Leaf order is fixed by the `dataset_ids` order supplied at batch creation,
 because a `leaf_index` is only meaningful relative to the batch that produced
 its root.
 
+### 2.4 TTL Renewal
+
+Anchors live in Persistent Soroban ledger entries, which are archived once their
+TTL lapses; verification then stops answering for the datasets they covered.
+The contract's write-time bump keeps a new anchor alive for roughly 180 days,
+and renewal pushes that deadline out before it expires.
+
+- `backend/app/services/ttl_renewal.py` selects `anchored` entries whose
+  recorded expiry falls inside `TTL_RENEWAL_WINDOW_DAYS` (default 30), batch
+  roots first via `extend_root_ttl`, then standalone records via `extend_ttl`
+  (batched datasets are skipped because their batch root covers them). Each
+  successful renewal records the new deadline, timestamp, and transaction hash;
+  a failed entry records its error and the run continues.
+- `backend/app/jobs/renew_ttl.py` performs one scheduled pass (cron, systemd
+  timer, or Kubernetes CronJob), supports `--dry-run`, and exits non-zero when a
+  renewal fails. It stays off unless `TTL_RENEWAL_ENABLED=true` and
+  `TTL_RENEWAL_SIGNER_SECRET` is set; renewal is a state-changing call signed by
+  that operational "rent payer" account, not by the researcher.
+- `GET /api/v1/maintenance/ttl-status` reports, per kind, the anchored count,
+  entries due for renewal, entries past their recorded expiry, renewal
+  failures, and the next deadline and last renewal.
+
+The deadlines are recorded in the database when an entry is anchored or renewed,
+not read back from the ledger, so the status endpoint is a drift detector rather
+than ground truth. Keeping the schedule tighter than the renewal window avoids
+duplicate attempts; the contract treats a redundant renewal as a no-op, but the
+fee is still paid.
+
 ---
 
 ## 3. Data Flow
