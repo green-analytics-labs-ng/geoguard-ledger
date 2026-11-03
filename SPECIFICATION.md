@@ -121,6 +121,34 @@ The system enables any third party to independently verify that a dataset has no
 | **IPFS (Phase 3)** | Decentralized raw data storage so third parties can re-hash and compare against the on-chain fingerprint. |
 | **Event Indexer (Phase 3+)** | Persists on-chain `Anchored` events off-chain, enabling full history reconstruction independent of RPC event retention windows. |
 
+### 2.3 Batched Anchoring (Merkle)
+
+Anchoring every dataset individually costs one Persistent ledger entry — and one
+rent obligation — per submission. Batched anchoring instead commits an arbitrary
+number of dataset hashes to a single Merkle root, so one on-chain entry covers
+the whole batch.
+
+- `backend/app/services/merkle.py` builds the tree off-chain: leaves are
+  `SHA256(0x00 || dataset_hash)`, internal nodes are
+  `SHA256(0x01 || left || right)`, and an odd final node is paired with itself.
+  It returns the root plus a bottom-up sibling proof for each leaf; the same
+  rules are enforced on-chain by `verify_inclusion`.
+- `POST /api/v1/batches` takes `submitter_address` and an ordered
+  `dataset_ids` list, stores each dataset's `leaf_index`, `merkle_root`, and
+  `merkle_proof`, and returns an unsigned transaction invoking
+  `anchor_root(submitter, merkle_root, leaf_count)`. Submitting the signed XDR
+  to `POST /api/v1/batches/{batch_id}/submit` marks the batch and every member
+  dataset `anchored` under the one transaction hash.
+- The contract stores a `RootRecord` under `Root(merkle_root)` in Persistent
+  storage and exposes `verify_inclusion` for read-only proof checking. A
+  batched dataset has no standalone `Record(hash)`, so `/verify` returns an
+  `inclusion` block (root, leaf index, sibling path, and local/on-chain
+  verdicts) instead of a direct anchor record.
+
+Leaf order is fixed by the `dataset_ids` order supplied at batch creation,
+because a `leaf_index` is only meaningful relative to the batch that produced
+its root.
+
 ---
 
 ## 3. Data Flow
