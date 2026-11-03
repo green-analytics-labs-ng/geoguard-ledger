@@ -1,0 +1,11 @@
+[advisories]
+# RUSTSEC-2026-0387: timing variability in crypto-bigint 0.5.5.
+#
+# It arrives only through soroban-env-host's secp256k1/p256 support
+# (soroban-env-host -> elliptic-curve 0.13 -> crypto-bigint 0.5). No fixed
+# 0.5.x release exists — the patch is 0.7.6 — and every soroban-sdk release
+# from 22 through 29 still pins elliptic-curve 0.13, so no dependency bump can
+# clear it. The contract itself only performs SHA-256 hashing and Soroban
+# storage access; it never runs secp256k1/p256 scalar arithmetic, and the
+# release WASM links the guest SDK rather than the host.
+ignore = ["RUSTSEC-2026-0387"]

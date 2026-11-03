@@ -805,7 +805,7 @@ researcher instead of by redeploying.
 | Framework | React 18+ (TypeScript) |
 | Build Tool | Vite |
 | Styling | Tailwind CSS |
-| Stellar SDK | `@stellar/stellar-sdk` + `@stellar/freighter-api` |
+| Stellar SDK | `@stellar/freighter-api` (transaction building happens in the backend) |
 | HTTP Client | `axios` or native `fetch` |
 | Routing | React Router v6 |
 | State Management | React Context + `useReducer` (or Zustand if complexity grows) |
